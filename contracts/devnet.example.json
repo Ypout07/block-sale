@@ -1,4 +1,6 @@
 {
+  "networkLabel": "xrpl-devnet",
+  "networkWsUrl": "wss://s.devnet.rippletest.net:51233",
   "vendorPoolAddress": "rEXAMPLEVENDORPOOL",
   "holderAddress": "rEXAMPLEHOLDER",
   "unauthorizedRecipientAddress": "rEXAMPLEUNAUTHORIZED",

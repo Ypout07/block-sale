@@ -4,6 +4,12 @@ const { Client, MPTokenIssuanceCreateFlags } = xrpl
 
 const DEVNET_URL = 'wss://s.devnet.rippletest.net:51233'
 
+function computeMptIssuanceId(address: string, sequence: number) {
+  const sequenceHex = sequence.toString(16).padStart(8, '0').toUpperCase()
+  const accountHex = Buffer.from(xrpl.decodeAccountID(address)).toString('hex').toUpperCase()
+  return `${sequenceHex}${accountHex}`
+}
+
 async function setupDevnet() {
   const client = new Client(DEVNET_URL)
   await client.connect()
@@ -41,6 +47,7 @@ async function setupDevnet() {
     }
 
     const preparedMPT = await client.autofill(mptIssuance)
+    const issuanceId = computeMptIssuanceId(VenueWallet.address, preparedMPT.Sequence)
     const signedMPT = VenueWallet.sign(preparedMPT)
     const resultMPT = await client.submitAndWait(signedMPT.tx_blob)
 
@@ -87,7 +94,8 @@ async function setupDevnet() {
     console.log('Successfully minted and distributed 1000 RLUSD to test wallets.')
 
     console.log('\n--- Task Complete ---')
-    console.log(`MPT AssetID: ${assetID}\n`)
+    console.log(`MPT LedgerIndex: ${assetID}`)
+    console.log(`MPT IssuanceID: ${issuanceId}\n`)
     console.log('Copy-paste the following for the dev team:')
     console.log(`VENUE_ADDRESS=${VenueWallet.address}`)
     console.log(`VENUE_SEED=${VenueWallet.seed}`)
@@ -99,8 +107,10 @@ async function setupDevnet() {
     console.log(`DAVE_SEED=${DaveWallet.seed}`)
     console.log(`SCALPER_ADDRESS=${ScalperWallet.address}`)
     console.log(`SCALPER_SEED=${ScalperWallet.seed}`)
-    console.log(`MPT_ASSET_ID=${assetID}`)
+    console.log(`MPT_LEDGER_INDEX=${assetID}`)
+    console.log(`MPT_ISSUANCE_ID=${issuanceId}`)
     console.log(`RLUSD_ISSUER=${IssuerWallet.address}`)
+    console.log(`RLUSD_ISSUER_SEED=${IssuerWallet.seed}`)
 
   } catch (error) {
     console.error('Error setting up Devnet:', error)

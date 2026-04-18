@@ -7,7 +7,10 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "setup:devnet": "node --experimental-strip-types ./scripts/setup_devnet.ts"
+    "setup:devnet": "node --experimental-strip-types ./scripts/setup_devnet.ts",
+    "purchase:primary": "node --experimental-strip-types ./scripts/primary_purchase_flow.ts",
+    "audit:primary-policy": "npm run build && node --experimental-strip-types ./scripts/primary_hook_audit.ts",
+    "audit:primary-hook": "npm run audit:primary-policy"
   },
   "dependencies": {
     "xrpl": "^4.2.0"
