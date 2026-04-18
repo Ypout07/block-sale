@@ -1,0 +1,2 @@
+uvicorn
+xrpl-py
