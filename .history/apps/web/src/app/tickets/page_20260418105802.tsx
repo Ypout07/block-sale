@@ -499,25 +499,14 @@ function Section({
   if (tickets.length === 0) return null;
 
   return (
-    <div className="mb-8 relative">
-      <div className="flex items-center justify-between px-4 mb-4">
-        <h2 className="text-[20px] font-bold text-white tracking-tight">{title}</h2>
-        <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" }}>
-          {tickets.length} {tickets.length === 1 ? 'ticket' : 'tickets'}
-        </span>
-      </div>
+    <div className="mb-8">
+      <h2 className="text-[22px] font-bold text-white tracking-tight px-4 mb-4 uppercase">{title}</h2>
       <div
         className="flex gap-4 hide-scrollbar"
-        style={{
-          overflowX: "auto",
-          paddingLeft: "16px",
-          scrollPaddingLeft: "16px",
-          scrollSnapType: "x mandatory",
-          WebkitOverflowScrolling: "touch",
-        }}
+        style={{ overflowX: "auto", paddingLeft: "16px", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}
       >
         {tickets.map((ticket) => (
-          <div key={ticket.id} style={{ width: "min(calc(100vw - 48px), 360px)", flexShrink: 0, scrollSnapAlign: "start" }}>
+          <div key={ticket.id} style={{ width: "min(calc(100vw - 4rem), 24rem)", flexShrink: 0, scrollSnapAlign: "start" }}>
             <TicketCard ticket={ticket} onReturnClick={onReturnClick} onQrClick={onQrClick} />
           </div>
         ))}
@@ -566,16 +555,15 @@ export default function TicketsPage() {
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto pb-24" style={{ background: "#000" }}>
-      <div className="pt-10 pb-6 px-4">
-        <h1 className="text-[22px] font-bold text-white tracking-tight uppercase mb-2">My Tickets</h1>
-        <div className="h-1 w-40 rounded-full" style={{ background: "#F06E1D" }}></div>
+      <div className="pt-14 pb-2 px-4">
+        <h1 className="text-[28px] font-bold text-white tracking-tight uppercase">My Tickets</h1>
       </div>
 
-      <div className="pt-2">
+      <div className="pt-6">
         <Section title="Ready for Entry" tickets={readyTickets} onReturnClick={setConfirmId} onQrClick={openQr} />
-        <Section title="Recent Purchases" tickets={lastWeek} onReturnClick={setConfirmId} onQrClick={openQr} />
-        <Section title="Last 30 Days" tickets={lastMonth} onReturnClick={setConfirmId} onQrClick={openQr} />
-        <Section title="Older Tickets" tickets={anytime} onReturnClick={setConfirmId} onQrClick={openQr} />
+        <Section title="Purchased In the Last Week" tickets={lastWeek} onReturnClick={setConfirmId} onQrClick={openQr} />
+        <Section title="Purchased In the Last Month" tickets={lastMonth} onReturnClick={setConfirmId} onQrClick={openQr} />
+        <Section title="Purchased Anytime" tickets={anytime} onReturnClick={setConfirmId} onQrClick={openQr} />
       </div>
 
       <nav

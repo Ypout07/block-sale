@@ -104,6 +104,7 @@ function EventSection({ label, events, onBuy }: { label: string; events: Event[]
         style={{
           overflowX: "auto",
           paddingLeft: "16px",
+          scrollPaddingLeft: "16px",
           scrollSnapType: "x mandatory",
           WebkitOverflowScrolling: "touch",
         }}
@@ -111,7 +112,7 @@ function EventSection({ label, events, onBuy }: { label: string; events: Event[]
         {events.map((event) => (
           <div
             key={event.id}
-            style={{ width: "min(calc(100vw - 4rem), 24rem)", flexShrink: 0, scrollSnapAlign: "start" }}
+            style={{ width: "min(calc(100vw - 48px), 360px)", flexShrink: 0, scrollSnapAlign: "start" }}
           >
             <EventCardInner event={event} onBuy={() => onBuy(event)} />
           </div>
@@ -149,7 +150,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto pb-24" style={{ background: "#000" }}>
-      <div className="flex flex-col pt-14">
+      <div className="flex flex-col pt-4">
         {Array.from(groups.entries()).map(([label, events]) => (
           <EventSection key={label} label={label} events={events} onBuy={openBuy} />
         ))}
