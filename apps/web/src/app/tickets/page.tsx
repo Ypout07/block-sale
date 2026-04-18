@@ -566,9 +566,15 @@ export default function TicketsPage() {
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto pb-24" style={{ background: "#000" }}>
-      <div className="pt-10 pb-6 px-4">
-        <h1 className="text-[22px] font-bold text-white tracking-tight uppercase mb-2">My Tickets</h1>
-        <div className="h-1 w-40 rounded-full" style={{ background: "#F06E1D" }}></div>
+      <div className="sticky top-0 z-40 pt-14 pb-4" style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)" }}>
+        <div className="flex px-4">
+          <div className="flex flex-col items-start gap-1.5">
+            <h1 className="text-[13px] font-bold tracking-wider uppercase text-white">
+              My Tickets
+            </h1>
+            <div className="h-1 w-full rounded-full" style={{ background: "#F06E1D" }} />
+          </div>
+        </div>
       </div>
 
       <div className="pt-2">

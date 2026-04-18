@@ -93,11 +93,14 @@ function EventCardInner({ event, onBuy }: { event: Event; onBuy: () => void }) {
 }
 
 function EventSection({ label, events, onBuy }: { label: string; events: Event[]; onBuy: (e: Event) => void }) {
+  const id = `section-${label.replace(/\s+/g, '-')}`;
   return (
-    <div className="mb-8">
-      <div className="flex items-baseline justify-between px-4 mb-3">
-        <h2 className="text-[22px] font-bold text-white tracking-tight">{label}</h2>
-        <button className="text-accent text-[15px] font-medium">See All</button>
+    <div id={id} className="mb-8 relative" style={{ scrollMarginTop: "100px" }}>
+      <div className="flex items-center justify-between px-4 mb-4">
+        <h2 className="text-[20px] font-bold text-white tracking-tight">{label}</h2>
+        <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" }}>
+          {events.length} {events.length === 1 ? 'event' : 'events'}
+        </span>
       </div>
       <div
         className="flex gap-4 hide-scrollbar"
@@ -148,9 +151,45 @@ export default function HomePage() {
     groups.set(event.label, bucket);
   }
 
+  const labels = Array.from(groups.keys());
+  const [activeTab, setActiveTab] = useState<string>(labels[0] || "");
+
+  const handleTabClick = (label: string) => {
+    setActiveTab(label);
+    const el = document.getElementById(`section-${label.replace(/\s+/g, '-')}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto pb-24" style={{ background: "#000" }}>
-      <div className="flex flex-col pt-4">
+      <div className="sticky top-0 z-40 pt-14 pb-4" style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)" }}>
+        <div className="flex gap-6 overflow-x-auto hide-scrollbar px-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          {labels.map((label) => {
+            const isActive = activeTab === label;
+            return (
+              <button
+                key={label}
+                onClick={() => handleTabClick(label)}
+                className="flex flex-col items-start gap-1.5 flex-shrink-0"
+              >
+                <span className={`text-[13px] font-bold tracking-wider uppercase ${isActive ? 'text-white' : 'text-[#8E8E93]'}`}>
+                  {label}
+                </span>
+                <div 
+                  className="h-1 w-full rounded-full transition-colors duration-200" 
+                  style={{ background: isActive ? "#F06E1D" : "rgba(255,255,255,0.15)" }} 
+                />
+              </button>
+            );
+          })}
+          {/* Spacer for right edge of scrollable buttons */}
+          <div style={{ minWidth: "16px", flexShrink: 0 }} />
+        </div>
+      </div>
+
+      <div className="flex flex-col pt-2">
         {Array.from(groups.entries()).map(([label, events]) => (
           <EventSection key={label} label={label} events={events} onBuy={openBuy} />
         ))}
