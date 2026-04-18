@@ -79,10 +79,14 @@ export function BuyOverlay({ event, visible, onClose }: Props) {
     setSubmitting(true);
     try {
       const recipients = slots.map(s => s.forMe ? myWallet : s.wallet.trim());
-      await buy({
+      const res = await buy({
         recipients,
         amountRlusd: total,
+        eventId: event.id,
       });
+      if (res && (res as any).eventId) {
+        localStorage.setItem("last_purchased_event_id", (res as any).eventId);
+      }
       setDone(true);
     } catch (e: any) {
       alert(e.message || "Purchase failed.");

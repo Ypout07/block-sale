@@ -17,10 +17,10 @@ export type { WalletDidAuth };
 export type BuyParams = {
   recipients: string[];
   amountRlusd: number;
+  eventId: string;
 };
 
 // crypto.subtle is only available in secure contexts (HTTPS / localhost).
-// Detect once so every call-site can branch without try/catch overhead.
 function hasCryptoSubtle(): boolean {
   try {
     return typeof globalThis.crypto?.subtle?.digest === "function";
@@ -29,8 +29,6 @@ function hasCryptoSubtle(): boolean {
   }
 }
 
-// Simple token that doesn't need crypto.subtle. Internally consistent:
-// verifyWallet checks wallet match + expiry only, no hash re-computation.
 function makeFallbackToken(wallet: string): string {
   return `fallback_${wallet.slice(1, 9)}_${Date.now().toString(36)}`;
 }
@@ -69,7 +67,6 @@ function getAuthProvider(): DidAuthProvider {
   return hasCryptoSubtle() ? mockDidAuthProvider : fallbackAuthProvider;
 }
 
-// Fallback QR payload for non-secure contexts — same shape, no crypto hash.
 function buildFallbackQr(
   ticketId: string,
   wallet: string,
@@ -120,6 +117,7 @@ export function useProtocol() {
         payerWallet: walletAddress,
         recipients: params.recipients,
         amountRlusd: params.amountRlusd,
+        eventId: params.eventId,
       }),
     });
     if (!res.ok) {
@@ -170,19 +168,54 @@ export function useProtocol() {
     });
   }
 
-  async function doReturnTicket(ticketId: string): Promise<ReturnTicketResult> {
+  async function doReturnTicket(ticketId: string, eventId?: string): Promise<any> {
     if (!walletAddress) throw new Error("Wallet not connected.");
-    if (!didAuth) throw new Error("Authentication required to return ticket.");
-    return returnTicket(
-      {
-        venueId: VENUE_ADDRESS,
+    const res = await fetch("/api/devnet/return", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         wallet: walletAddress,
         ticketId,
-        didAuth,
-        runtime: { authProvider },
-      },
-      MPT_ISSUANCE_ID
-    );
+        venueId: VENUE_ADDRESS,
+        eventId,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Return failed." }));
+      throw new Error((err as { error?: string }).error ?? "Return failed.");
+    }
+    return res.json();
+  }
+
+  async function joinWaitlist(venueId: string): Promise<any> {
+    if (!walletAddress) throw new Error("Wallet not connected.");
+    const res = await fetch("/api/devnet/waitlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wallet: walletAddress,
+        venueId,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Waitlist join failed." }));
+      throw new Error((err as { error?: string }).error ?? "Waitlist join failed.");
+    }
+    return res.json();
+  }
+
+  async function getEventState(eventId: string): Promise<any> {
+    const res = await fetch(`/api/devnet/event-state?eventId=${eventId}`);
+    if (!res.ok) return null;
+    return res.json();
+  }
+
+  async function getMyWaitlistStatus(): Promise<any[]> {
+    if (!walletAddress) return [];
+    const res = await fetch(`/api/devnet/waitlist/my-status?wallet=${walletAddress}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.entries || [];
   }
 
   return {
@@ -196,5 +229,8 @@ export function useProtocol() {
     claim,
     generateQr,
     returnTicket: doReturnTicket,
+    joinWaitlist,
+    getEventState,
+    getMyWaitlistStatus,
   };
 }

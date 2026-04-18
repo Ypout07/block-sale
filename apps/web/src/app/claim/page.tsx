@@ -59,7 +59,6 @@ function ClaimOverlay({
   const [detailsIn, setDetailsIn] = useState(false);
   const [claimError, setClaimError] = useState("");
 
-  // Animate in when opened
   useEffect(() => {
     if (visible && ticket) {
       setPhase("preview");
@@ -72,7 +71,6 @@ function ClaimOverlay({
     }
   }, [visible, ticket?.claimId]);
 
-  // Draw checkmark then reveal details after success
   useEffect(() => {
     if (phase === "success") {
       requestAnimationFrame(() => requestAnimationFrame(() => setCheckDraw(true)));
@@ -108,7 +106,6 @@ function ClaimOverlay({
 
   return (
     <div className="fixed inset-0 z-[150] max-w-md mx-auto" style={{ pointerEvents: visible ? "auto" : "none" }}>
-      {/* Backdrop */}
       <div
         className="absolute inset-0"
         style={{
@@ -120,7 +117,6 @@ function ClaimOverlay({
         onClick={() => canClose && onClose()}
       />
 
-      {/* Card — slides up, then expands to full screen on success */}
       <div
         className="absolute left-0 right-0 overflow-hidden"
         style={{
@@ -146,14 +142,12 @@ function ClaimOverlay({
             flexDirection: "column",
           }}
         >
-          {/* Drag handle (preview only) */}
           {!isSuccess && (
             <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
               <div className="w-10 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.22)" }} />
             </div>
           )}
 
-          {/* Event header */}
           <div
             className="flex-shrink-0 px-6"
             style={{ paddingTop: isSuccess ? 64 : 16, paddingBottom: 12, transition: "padding-top 0.5s" }}
@@ -187,7 +181,6 @@ function ClaimOverlay({
             </p>
           </div>
 
-          {/* Claim button area — vertically centered in remaining space */}
           <div className="flex-1 flex items-center justify-center min-h-0">
             <div className="flex flex-col items-center gap-3">
               <button
@@ -239,7 +232,6 @@ function ClaimOverlay({
             </div>
           </div>
 
-          {/* Bottom strip */}
           <div
             className="flex-shrink-0"
             style={{
@@ -251,7 +243,6 @@ function ClaimOverlay({
             }}
           >
             {isSuccess && detailsIn ? (
-              /* Success details */
               <div
                 style={{ opacity: detailsIn ? 1 : 0, transition: "opacity 0.4s" }}
                 className="flex flex-col gap-2.5"
@@ -272,12 +263,6 @@ function ClaimOverlay({
                     {truncHash(ticket.txHash)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[12px]" style={{ color: "rgba(255,255,255,0.4)" }}>Issuance ID</span>
-                  <span className="text-[11px] font-mono" style={{ color: "rgba(255,255,255,0.45)" }}>
-                    {ticket.issuanceId}
-                  </span>
-                </div>
                 <button
                   onClick={() => { onClose(); router.push("/tickets"); }}
                   className="w-full py-3.5 rounded-2xl text-white font-bold text-[15px]"
@@ -287,7 +272,6 @@ function ClaimOverlay({
                 </button>
               </div>
             ) : !isSuccess ? (
-              /* Preview / Claiming — gift info */
               <div>
                 {claimError && (
                   <p className="text-[12px] mb-2 text-center" style={{ color: "#c0392b" }}>{claimError}</p>
@@ -336,7 +320,6 @@ function ClaimRow({
         cursor: isPending ? "pointer" : "default",
       }}
     >
-      {/* Thumbnail */}
       <div
         className="rounded-xl flex-shrink-0"
         style={{
@@ -348,7 +331,6 @@ function ClaimRow({
         }}
       />
 
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="text-white text-[15px] font-semibold leading-tight truncate">
           {ticket.event.name}
@@ -364,27 +346,58 @@ function ClaimRow({
   );
 }
 
+// ── Waitlist Row ──────────────────────────────────────────────────────────────
+
+function WaitlistRow({ entry }: { entry: any }) {
+  const event = byId(entry.venueId) || byId("12");
+  return (
+    <div className="w-full flex items-center gap-3 px-4 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+       <div
+        className="rounded-xl flex-shrink-0 grayscale"
+        style={{
+          width: 48,
+          height: 48,
+          backgroundImage: `url(${event.photo})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      />
+      <div className="flex-1">
+        <p className="text-white text-[15px] font-semibold leading-tight">{event.name}</p>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 uppercase tracking-wider">Waitlisted</span>
+          <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.4)" }}>Pos: #1</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ClaimPage() {
-  const { walletAddress, getClaims, connectWallet } = useProtocol();
+  const { walletAddress, getClaims, connectWallet, getMyWaitlistStatus } = useProtocol();
   const [claims, setClaims] = useState<IncomingTicket[]>([]);
+  const [waitlist, setWaitlist] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [walletModalOpen, setWalletModalOpen] = useState(false);
 
   useEffect(() => {
-    async function fetchClaims() {
+    async function fetchData() {
       if (!walletAddress) {
         setLoading(false);
         return;
       }
       try {
-        const rawClaims = await getClaims();
+        const [rawClaims, rawWaitlist] = await Promise.all([
+          getClaims(),
+          getMyWaitlistStatus()
+        ]);
         const formatted = rawClaims.map((c: any) => ({
           claimId: c.claimId,
-          event: byId(c.venueId) || byId("13"), // fallback to Tyler if ID mismatch
+          event: byId(c.venueId) || byId("13"),
           buyerAddress: c.buyerAddress,
           amountRlusd: c.amountRlusd,
           seatInfo: "General Admission",
@@ -394,17 +407,21 @@ export default function ClaimPage() {
           issuanceId: c.issuanceId,
         }));
         setClaims(formatted);
+        setWaitlist(rawWaitlist);
       } catch (e) {
-        console.error("Failed to fetch claims", e);
+        console.error("Failed to fetch activity", e);
       } finally {
         setLoading(false);
       }
     }
-    fetchClaims();
-  }, [walletAddress, getClaims]);
+    fetchData();
+    const interval = setInterval(fetchData, 3000);
+    return () => clearInterval(interval);
+  }, [walletAddress, getClaims, getMyWaitlistStatus]);
 
   const pending = claims.filter((c) => c.status === "pending_authorization");
   const past = claims.filter((c) => c.status === "claimed");
+  const activeWaitlist = waitlist.filter((w) => w.status === "pending");
 
   function openClaim(claimId: string) {
     setSelectedId(claimId);
@@ -429,23 +446,20 @@ export default function ClaimPage() {
   const selectedTicket = claims.find((c) => c.claimId === selectedId) ?? null;
 
   return (
-    <div className="min-h-screen max-w-md mx-auto pb-24" style={{ background: "#000" }}>
-      {/* Header Spacer */}
+    <div className="min-h-screen max-w-md mx-auto pb-32" style={{ background: "#000" }}>
       <div className="pt-14" />
 
-      {loading && (
+      {loading && claims.length === 0 && waitlist.length === 0 && (
         <div className="flex justify-center py-20">
           <div className="w-8 h-8 border-4 border-[#F06E1D] border-t-transparent rounded-full animate-spin" />
         </div>
       )}
 
       {/* Pending section */}
-      {!loading && pending.length > 0 && (
+      {pending.length > 0 && (
         <div className="mt-2">
           <div className="px-4 mb-4">
-            <h2 className="text-[22px] font-bold text-white tracking-tight uppercase">
-              Pending
-            </h2>
+            <h2 className="text-[22px] font-bold text-white tracking-tight uppercase">Ready to Claim</h2>
           </div>
           <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
             {pending.map((ticket) => (
@@ -455,13 +469,25 @@ export default function ClaimPage() {
         </div>
       )}
 
-      {/* Past claims section */}
-      {!loading && past.length > 0 && (
+      {/* Waitlist section */}
+      {activeWaitlist.length > 0 && (
         <div className="mt-8">
           <div className="px-4 mb-4">
-            <h2 className="text-[22px] font-bold text-white tracking-tight uppercase">
-              Claimed
-            </h2>
+            <h2 className="text-[22px] font-bold text-white tracking-tight uppercase">Waitlist Status</h2>
+          </div>
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+            {activeWaitlist.map((entry) => (
+              <WaitlistRow key={entry.waitlistId} entry={entry} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Past claims section */}
+      {past.length > 0 && (
+        <div className="mt-8">
+          <div className="px-4 mb-4">
+            <h2 className="text-[22px] font-bold text-white tracking-tight uppercase">Activity</h2>
           </div>
           <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
             {past.map((ticket) => (
@@ -471,8 +497,7 @@ export default function ClaimPage() {
         </div>
       )}
 
-      {/* Empty state */}
-      {!loading && claims.length === 0 && (
+      {!loading && claims.length === 0 && waitlist.length === 0 && (
         <div className="flex flex-col items-center justify-center py-28 px-8">
           <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-5">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -480,29 +505,17 @@ export default function ClaimPage() {
             </svg>
           </div>
           <p className="text-[18px] font-semibold text-white text-center">No recent activity</p>
-          <p className="text-[14px] mt-2 text-center" style={{ color: "rgba(255,255,255,0.35)", maxWidth: "260px" }}>
-            When someone gifts you a ticket or you perform an action on-chain, it will appear here.
+          <p className="text-[14px] mt-2 text-center" style={{ color: "rgba(255,255,255,0.35)" }}>
+            Gift notifications and waitlist status will appear here.
           </p>
-          <Link href="/" className="mt-8 px-8 py-3 rounded-full text-[14px] font-bold text-black" style={{ background: "#F06E1D" }}>
-            Go Home
-          </Link>
         </div>
       )}
 
       <SharedNavBar onWalletClick={() => setWalletModalOpen(true)} />
 
-      <ClaimOverlay
-        ticket={selectedTicket}
-        visible={overlayVisible}
-        onClose={closeClaim}
-        onClaimed={handleClaimed}
-      />
+      <ClaimOverlay ticket={selectedTicket} visible={overlayVisible} onClose={closeClaim} onClaimed={handleClaimed} />
 
-      <WalletModal
-        visible={walletModalOpen}
-        onClose={() => setWalletModalOpen(false)}
-        onConnect={connectWallet}
-      />
+      <WalletModal visible={walletModalOpen} onClose={() => setWalletModalOpen(false)} onConnect={connectWallet} />
     </div>
   );
 }

@@ -10,6 +10,40 @@ import { SharedNavBar } from "@/components/SharedNavBar";
 import { WalletModal } from "@/components/WalletModal";
 
 function EventCardInner({ event, onBuy }: { event: Event; onBuy: () => void }) {
+  const { walletAddress, joinWaitlist, getEventState } = useProtocol();
+  const [waitlisted, setWaitlisted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [liveState, setLiveState] = useState<{ remainingTickets: number, isSoldOut: boolean } | null>(null);
+
+  useEffect(() => {
+    async function fetchState() {
+      const state = await getEventState(event.id);
+      if (state) setLiveState(state);
+    }
+    fetchState();
+    const interval = setInterval(fetchState, 3000);
+    return () => clearInterval(interval);
+  }, [event.id, getEventState]);
+
+  const handleWaitlist = async () => {
+    if (!walletAddress) {
+      alert("Connect wallet first");
+      return;
+    }
+    setLoading(true);
+    try {
+      await joinWaitlist(event.id);
+      setWaitlisted(true);
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isSoldOut = liveState?.isSoldOut || event.soldOut;
+  const remaining = liveState?.remainingTickets ?? (event.soldOut ? 0 : 10);
+
   return (
     <div
       className="rounded-3xl overflow-hidden"
@@ -17,13 +51,23 @@ function EventCardInner({ event, onBuy }: { event: Event; onBuy: () => void }) {
         backgroundImage: `url(${event.photo})`,
         backgroundSize: "cover",
         backgroundPosition: "center top",
+        filter: isSoldOut && !waitlisted ? "grayscale(0.4) brightness(0.8)" : "none",
       }}
     >
       <div style={{ background: `linear-gradient(to bottom, rgba(${event.tint},0.62) 0%, rgba(${event.tint},0.28) 40%, rgba(0,0,0,0.60) 70%, rgba(0,0,0,0.90) 100%)` }}>
         <div className="flex flex-col justify-between p-5" style={{ height: "380px" }}>
-          <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.75)" }}>
-            {event.label}
-          </span>
+          <div className="flex justify-between items-start">
+            <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.75)" }}>
+              {event.label}
+            </span>
+            {isSoldOut ? (
+              <span className="text-[10px] font-black bg-red-600/80 px-2 py-0.5 rounded text-white tracking-widest uppercase shadow-lg">Sold Out</span>
+            ) : remaining <= 3 ? (
+              <span className="text-[10px] font-black bg-orange-600/80 px-2 py-0.5 rounded text-white tracking-widest uppercase shadow-lg animate-pulse">
+                Only {remaining} left!
+              </span>
+            ) : null}
+          </div>
           <div>
             <p className="text-[12px] font-semibold uppercase tracking-wider mb-2" style={{ color: "rgba(255,255,255,0.60)" }}>
               {event.trending}
@@ -51,14 +95,25 @@ function EventCardInner({ event, onBuy }: { event: Event; onBuy: () => void }) {
             <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.50)" }}>{event.date}</p>
           </div>
           <div className="flex flex-col items-end gap-1">
-            <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.45)" }}>From {event.price} RLUSD</span>
-            <button
-              onClick={onBuy}
-              className="text-white text-[13px] font-bold px-4 py-1.5 rounded-full"
-              style={{ background: "#F06E1D" }}
-            >
-              Buy
-            </button>
+            {!isSoldOut && <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.45)" }}>From {event.price} RLUSD</span>}
+            {isSoldOut ? (
+              <button
+                onClick={handleWaitlist}
+                disabled={waitlisted || loading}
+                className="text-white text-[13px] font-bold px-4 py-1.5 rounded-full"
+                style={{ background: waitlisted ? "#34C759" : "#636366" }}
+              >
+                {loading ? "Joining..." : waitlisted ? "On Waitlist" : "Join Waitlist"}
+              </button>
+            ) : (
+              <button
+                onClick={onBuy}
+                className="text-white text-[13px] font-bold px-4 py-1.5 rounded-full"
+                style={{ background: "#F06E1D" }}
+              >
+                Buy
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -119,7 +174,6 @@ function HomePageContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Focus search if navigated from another page via Search icon
   useEffect(() => {
     if (searchParams.get("focusSearch") === "true") {
       setTimeout(() => {
@@ -141,7 +195,6 @@ function HomePageContent() {
     setTimeout(() => setOverlayEvent(null), 540);
   }, []);
 
-  // Filter events based on search
   const filteredEvents = useMemo(() => {
     if (!searchQuery.trim()) return ALL_EVENTS;
     const q = searchQuery.toLowerCase();
@@ -152,7 +205,6 @@ function HomePageContent() {
     );
   }, [searchQuery]);
 
-  // Group filtered events by label
   const groups = useMemo(() => {
     const map = new Map<string, Event[]>();
     for (const event of filteredEvents) {
@@ -176,14 +228,12 @@ function HomePageContent() {
 
   const handleSearchClick = () => {
     searchInputRef.current?.focus();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto pb-32" style={{ background: "#000" }}>
       <div className="sticky top-0 z-40 pt-10 pb-3" style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)" }}>
-        
-        {/* Top Search Bar - Raised and Slimmer */}
         <div className="px-4 mb-4">
           <div className="flex items-center gap-2.5 border-b border-white/10 pb-1.5">
             <IconSearch />
@@ -198,7 +248,6 @@ function HomePageContent() {
           </div>
         </div>
 
-        {/* Tab strip */}
         <div className="flex gap-6 overflow-x-auto hide-scrollbar px-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {labels.map((label) => {
             const isActive = activeTab === label;
@@ -206,7 +255,7 @@ function HomePageContent() {
               <button
                 key={label}
                 onClick={() => handleTabClick(label)}
-                className="flex flex-col items-start gap-1 flex-shrink-0"
+                className="flex flex-col items-start gap-1.5 flex-shrink-0"
               >
                 <span className={`text-[13px] font-bold tracking-wider uppercase ${isActive ? 'text-white' : 'text-[#8E8E93]'}`}>
                   {label}

@@ -76,7 +76,10 @@ export default function BuyPage() {
     setSubmitting(true);
     const recipients = slots.map(s => s.forMe ? myWallet : s.wallet.trim());
     try {
-      const res = await buy({ recipients, amountRlusd: total });
+      const res = await buy({ recipients, amountRlusd: total, eventId: event.id });
+      if (res && (res as any).eventId) {
+        localStorage.setItem("last_purchased_event_id", (res as any).eventId);
+      }
       setResult(res);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Purchase failed.");

@@ -6,10 +6,12 @@ export type Event = {
   trending: string;
   description: string;
   date: string;
+  isoDate: string;
   venue: string;
   price: number;
   photo: string;
   tint: string; // rgb values, e.g. "91,53,213"
+  soldOut?: boolean;
 };
 
 export const ALL_EVENTS: Event[] = [
@@ -22,6 +24,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "NOW ON SALE",
     description: "Experience the critically acclaimed tour live. Limited tickets available.",
     date: "Sat, May 23 · 7:00 PM",
+    isoDate: "2026-05-23T19:00:00",
     venue: "Sprint Center · Kansas City, MO",
     price: 85,
     photo: "https://upload.wikimedia.org/wikipedia/commons/5/5b/Matthew_Matty_Healy_The_1975_%28253662053%29.jpeg",
@@ -35,6 +38,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "SELLING FAST",
     description: "The Renaissance Act II live experience — one night of pure power.",
     date: "Fri, May 9 · 8:00 PM",
+    isoDate: "2026-05-09T20:00:00",
     venue: "Arrowhead Stadium · Kansas City, MO",
     price: 250,
     photo: "https://upload.wikimedia.org/wikipedia/commons/1/17/Beyonce_at_The_Formation_World_Tour%2C_at_Citi_Field.jpg",
@@ -50,6 +54,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "THIS WEEKEND",
     description: "The biggest rap tour of the decade hits Kansas City.",
     date: "Sat, Apr 19 · 9:00 PM",
+    isoDate: "2026-04-19T21:00:00",
     venue: "Sprint Center · Kansas City, MO",
     price: 130,
     photo: "https://upload.wikimedia.org/wikipedia/commons/2/28/Drake_July_2016.jpg",
@@ -63,6 +68,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "ON SALE NOW",
     description: "Posty goes country — and brings the biggest show of his career.",
     date: "Sun, Apr 20 · 8:00 PM",
+    isoDate: "2026-04-20T20:00:00",
     venue: "Sprint Center · Kansas City, MO",
     price: 100,
     photo: "https://upload.wikimedia.org/wikipedia/commons/c/c9/Post_Malone_2019_by_Glenn_Francis.jpg",
@@ -78,6 +84,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "SELLING FAST",
     description: "A once-in-a-lifetime immersive live experience under the stars.",
     date: "Sun, Jun 7 · 7:30 PM",
+    isoDate: "2026-06-07T19:30:00",
     venue: "Arrowhead Stadium · Kansas City, MO",
     price: 120,
     photo: "https://upload.wikimedia.org/wikipedia/commons/0/06/Chris_Martin%2C_Coldplay%2C_Main_Square_Festival%2C_Arras_2011.jpg",
@@ -91,6 +98,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "LIMITED TICKETS",
     description: "A journey through every era — three hours of pure magic.",
     date: "Sat, Jun 14 · 6:00 PM",
+    isoDate: "2026-06-14T18:00:00",
     venue: "Kauffman Center · Kansas City, MO",
     price: 200,
     photo: "https://upload.wikimedia.org/wikipedia/commons/7/71/Taylor_Swift_The_Eras_Tour_1989_Era_Set_%2853109542801%29_%28cropped%29.jpg",
@@ -104,6 +112,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "ON SALE NOW",
     description: "The biggest Latin artist in the world comes to the City.",
     date: "Wed, Jul 2 · 8:00 PM",
+    isoDate: "2026-07-02T20:00:00",
     venue: "Sprint Center · Kansas City, MO",
     price: 95,
     photo: "https://upload.wikimedia.org/wikipedia/commons/b/b1/Bad_Bunny_2019_by_Glenn_Francis_%28cropped%29.jpg",
@@ -119,6 +128,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "HOT",
     description: "Pulitzer Prize winner. Grammy champion. Now live on the GNX tour.",
     date: "Sat, Jul 19 · 8:00 PM",
+    isoDate: "2026-07-19T20:00:00",
     venue: "Sprint Center · Kansas City, MO",
     price: 110,
     photo: "https://upload.wikimedia.org/wikipedia/commons/3/32/Pulitzer2018-portraits-kendrick-lamar.jpg",
@@ -132,10 +142,12 @@ export const ALL_EVENTS: Event[] = [
     trending: "ALMOST SOLD OUT",
     description: "An immersive theatrical performance you won't soon forget.",
     date: "Thu, May 15 · 8:30 PM",
+    isoDate: "2026-05-15T20:30:00",
     venue: "Sprint Center · Kansas City, MO",
     price: 115,
     photo: "https://upload.wikimedia.org/wikipedia/commons/3/3a/Tyler_The_Creator_%40_Way_Out_West_2015%2C_Gothenburg_%28cropped%29.jpg",
     tint: "20,100,40",
+    soldOut: true,
   },
   {
     id: "14",
@@ -145,6 +157,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "JUST ADDED",
     description: "Planet Her's alter ego brings the most boundary-pushing show of 2026.",
     date: "Sat, May 31 · 9:00 PM",
+    isoDate: "2026-05-31T21:00:00",
     venue: "Starlight Theatre · Kansas City, MO",
     price: 95,
     photo: "https://upload.wikimedia.org/wikipedia/commons/4/4c/Doja_Cat_2019_photo_by_Glenn_Francis.jpg",
@@ -160,6 +173,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "SELLING FAST",
     description: "Neo-soul's defining voice in an intimate arena setting.",
     date: "Fri, Sep 5 · 8:00 PM",
+    isoDate: "2026-09-05T20:00:00",
     venue: "Sprint Center · Kansas City, MO",
     price: 90,
     photo: "https://upload.wikimedia.org/wikipedia/commons/7/7f/SZA_-_All_the_Stars_%28SOS_Tour%2C_Toronto%29.png",
@@ -173,6 +187,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "BACK BY DEMAND",
     description: "Following the Super Bowl — Usher hits the road for the biggest tour of his career.",
     date: "Tue, Jun 24 · 8:00 PM",
+    isoDate: "2026-06-24T20:00:00",
     venue: "T-Mobile Center · Kansas City, MO",
     price: 140,
     photo: "https://upload.wikimedia.org/wikipedia/commons/b/b8/Usher_2013_at_White_House.jpg",
@@ -188,6 +203,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "JUST LISTED",
     description: "The raw, electric GUTS album performed live for the first time.",
     date: "Sun, Aug 3 · 7:00 PM",
+    isoDate: "2026-08-03T19:00:00",
     venue: "Municipal Auditorium · Kansas City, MO",
     price: 75,
     photo: "https://upload.wikimedia.org/wikipedia/commons/4/42/Olivia_Rodrigo_performs_%27Get_Him_Back%27_live.jpg",
@@ -201,6 +217,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "JUST LISTED",
     description: "The pop sensation brings her debut headlining tour to KC.",
     date: "Fri, Aug 22 · 7:30 PM",
+    isoDate: "2026-08-22T19:30:00",
     venue: "Starlight Theatre · Kansas City, MO",
     price: 80,
     photo: "https://upload.wikimedia.org/wikipedia/commons/2/2d/Sabrina_Carpenter%2C_The_Eras_Tour%2C_Singapore_National_Stadium%2C_9_March_2024.jpeg",
@@ -214,6 +231,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "JUST LISTED",
     description: "The midwest's own princess returns home for a special night.",
     date: "Thu, Sep 18 · 7:00 PM",
+    isoDate: "2026-09-18T19:00:00",
     venue: "Uptown Theater · Kansas City, MO",
     price: 65,
     photo: "https://upload.wikimedia.org/wikipedia/commons/a/a1/Chappell_Roan_%40_Hollywood_Palladium_11_18_2022_%2853885660052%29.jpg",
@@ -229,6 +247,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "LIMITED TICKETS",
     description: "Sheffield's finest return with an intimate and cinematic live experience.",
     date: "Wed, Jul 9 · 8:00 PM",
+    isoDate: "2026-07-09T20:00:00",
     venue: "Crossroads KC · Kansas City, MO",
     price: 88,
     photo: "https://upload.wikimedia.org/wikipedia/commons/7/73/Arctic_Monkeys_at_Glastonbury_%282013%29.jpg",
@@ -242,6 +261,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "SELLING FAST",
     description: "Kevin Parker's psychedelic odyssey returns — bigger and bolder than ever.",
     date: "Fri, Aug 1 · 8:00 PM",
+    isoDate: "2026-08-01T20:00:00",
     venue: "Starlight Theatre · Kansas City, MO",
     price: 82,
     photo: "https://upload.wikimedia.org/wikipedia/commons/9/9c/Kevin_Parker_of_Tame_Impala_%28cropped%29.jpg",
@@ -255,6 +275,7 @@ export const ALL_EVENTS: Event[] = [
     trending: "ON SALE NOW",
     description: "Cinematic, haunting, beautiful — Lana Del Rey live under open skies.",
     date: "Sun, Aug 17 · 7:30 PM",
+    isoDate: "2026-08-17T19:30:00",
     venue: "Kauffman Center · Kansas City, MO",
     price: 95,
     photo: "https://upload.wikimedia.org/wikipedia/commons/8/8d/Lana_Del_Rey_Lollapalooza_Chile_2018_%28cropped%29.jpg",

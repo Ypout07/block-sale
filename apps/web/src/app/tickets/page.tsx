@@ -511,11 +511,14 @@ export default function TicketsPage() {
         
         // Map the on-chain balance to actual UI cards
         if (count > 0) {
+          const lastId = localStorage.getItem("last_purchased_event_id") || "12";
+          const event = byId(lastId) || byId("12");
+          
           const mockTickets: PurchasedTicket[] = Array.from({ length: count }, (_, i) => ({
             id: `chain-${i}`,
-            event: byId("13"), // Default to Tyler for the demo
+            event: event,
             purchasedAt: new Date(),
-            eventDateTime: new Date("2026-04-18T23:00:00"),
+            eventDateTime: new Date(event.isoDate),
             quantity: 1,
             seatInfo: `Floor GA · Ticket #${4421 + i}`,
             status: "active" as TicketStatus
@@ -548,7 +551,10 @@ export default function TicketsPage() {
     setReturning(true);
     setReturnError("");
     try {
-      await returnTicket(confirmId);
+      // Find the event ID for this ticket to pass to the return API
+      const ticketObj = tickets.find(t => t.id === confirmId);
+      await returnTicket(confirmId, ticketObj?.event.id);
+      
       setTickets((prev) => prev.map((t) => t.id === confirmId ? { ...t, status: "returned" as TicketStatus, returnedAt: new Date() } : t));
       setConfirmId(null);
     } catch (e: unknown) {

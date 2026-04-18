@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client, Wallet } from "xrpl";
 import { addPendingClaim } from "@/lib/claimStore";
+import { decrementTickets } from "@/lib/eventStore";
 
 const DEVNET_URL = "wss://s.devnet.rippletest.net:51233";
 const CLIENT_OPTIONS = { connectionTimeout: 20000 };
@@ -9,7 +10,6 @@ const VENUE_ADDRESS = "rDa3E72iujUJciri1B8djcmowVsuNDu4QT";
 const MPT_ISSUANCE_ID = "0013825E8499A40F466D9E541672E5B7440444035AB3B298";
 const RLUSD_ISSUER = "rLVPGrB5vPYryqtghu3zQ9F6mSdJmNEJB1";
 
-// Pre-funded demo seeds from contracts/devnet.json — server-side only
 const DEMO_SEEDS: Record<string, string> = {
   rDa3E72iujUJciri1B8djcmowVsuNDu4QT: "sEd77UAry5NZshnbLwf9pwU3pscTDf8",
   rH1wbyfhqKKvybioodsh9ctZiRf8rS1hKS: "sEdViyntgnVLEaerZG2vthtbk5MFKQM",
@@ -47,17 +47,14 @@ async function isRecipientAuthorized(client: Client, wallet: string): Promise<bo
   );
 }
 
-export function GET() {
-  return NextResponse.json({ status: "ok", devnet: DEVNET_URL });
-}
-
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as {
     payerWallet: string;
     recipients: string[];
     amountRlusd: number;
+    eventId?: string;
   };
-  const { payerWallet, recipients, amountRlusd } = body;
+  const { payerWallet, recipients, amountRlusd, eventId } = body;
 
   const payerSeed = DEMO_SEEDS[payerWallet];
   if (!payerSeed) {
@@ -74,7 +71,7 @@ export async function POST(req: NextRequest) {
     const payerWalletObj = Wallet.fromSeed(payerSeed);
     const venueWalletObj = Wallet.fromSeed(DEMO_SEEDS[VENUE_ADDRESS]);
 
-    // Ensure Venue has a trust line for RLUSD
+    // Ensure Venue has a trust line for RLUSD and allow rippling
     try {
       const lines = await client.request({ command: "account_lines", account: VENUE_ADDRESS });
       const hasLine = lines.result.lines.some((l: any) => l.currency === "USD" && l.account === RLUSD_ISSUER);
@@ -82,6 +79,7 @@ export async function POST(req: NextRequest) {
         await submitTx(client, venueWalletObj, {
           TransactionType: "TrustSet",
           Account: VENUE_ADDRESS,
+          Flags: 0x00020000, // tfClearNoRipple
           LimitAmount: { currency: "USD", issuer: RLUSD_ISSUER, value: "1000000" },
         });
       }
@@ -89,25 +87,51 @@ export async function POST(req: NextRequest) {
       console.error("Venue trustline setup failed", e);
     }
 
-    // Step 1: RLUSD payment from buyer to venue
+    // Step 1: Redemption-Issue Bridge (Bypasses Ripple Pathing Errors)
     let paymentResult: TxResult;
     try {
-      paymentResult = await submitTx(client, payerWalletObj, {
+      const issuerWalletObj = Wallet.fromSeed(DEMO_SEEDS[RLUSD_ISSUER] || "sEdTcVsmgfearttgmGVyXipHui29i2K");
+      const amountStr = amountRlusd.toString();
+
+      console.log(`LiquidityBridge: Alice redeeming ${amountStr} to Issuer...`);
+      // A: Alice -> Issuer (Redemption)
+      const redeemTx = await submitTx(client, payerWalletObj, {
         TransactionType: "Payment",
         Account: payerWallet,
-        Destination: VENUE_ADDRESS,
-        Amount: { currency: "USD", value: amountRlusd.toString(), issuer: RLUSD_ISSUER },
+        Destination: RLUSD_ISSUER,
+        Amount: { currency: "USD", value: amountStr, issuer: RLUSD_ISSUER },
       });
+
+      if (redeemTx.meta?.TransactionResult !== "tesSUCCESS") {
+        let msg = `Redemption failed: ${redeemTx.meta?.TransactionResult}`;
+        if (redeemTx.meta?.TransactionResult === "tecPATH_PARTIAL" || redeemTx.meta?.TransactionResult === "tecPATH_DRY") {
+          msg = `Insufficient RLUSD balance in ${payerWallet}. Current balance must cover ticket price (${amountStr} USD). Use fix_alice.ts or the faucet.`;
+        }
+        return NextResponse.json(
+          { error: msg },
+          { status: 500 }
+        );
+      }
+
+      console.log(`LiquidityBridge: Issuer issuing ${amountStr} to Venue...`);
+      // B: Issuer -> Venue (Issuance)
+      paymentResult = await submitTx(client, issuerWalletObj, {
+        TransactionType: "Payment",
+        Account: RLUSD_ISSUER,
+        Destination: VENUE_ADDRESS,
+        Amount: { currency: "USD", value: amountStr, issuer: RLUSD_ISSUER },
+      });
+
     } catch (e) {
       return NextResponse.json(
-        { error: `RLUSD payment failed: ${e instanceof Error ? e.message : String(e)}` },
+        { error: `Liquidity bridge failed: ${e instanceof Error ? e.message : String(e)}` },
         { status: 500 }
       );
     }
 
     if (paymentResult.meta?.TransactionResult !== "tesSUCCESS") {
       return NextResponse.json(
-        { error: `Payment rejected: ${paymentResult.meta?.TransactionResult ?? "unknown"}` },
+        { error: `Issuance rejected: ${paymentResult.meta?.TransactionResult ?? "unknown"}` },
         { status: 500 }
       );
     }
@@ -118,12 +142,14 @@ export async function POST(req: NextRequest) {
     const failedRecipients: unknown[] = [];
 
     for (let i = 0; i < recipients.length; i++) {
-      const recipientWallet = recipients[i];
+      // Dynamic ticket tracking
+      if (eventId) {
+        decrementTickets(eventId);
+      }
 
+      const recipientWallet = recipients[i];
       let authorized = await isRecipientAuthorized(client, recipientWallet);
 
-      // FOR DEMO: If the recipient is NOT the payer, we WANT it to be pending
-      // so the other person can show the "Claim" flow on their phone.
       if (recipientWallet !== payerWallet) {
         authorized = false;
       }
@@ -154,7 +180,6 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Send ticket MPT from venue to recipient
       try {
         const releaseResult = await submitTx(client, venueWalletObj, {
           TransactionType: "Payment",
@@ -164,36 +189,12 @@ export async function POST(req: NextRequest) {
         });
 
         if (releaseResult.meta?.TransactionResult === "tesSUCCESS") {
-          deliveredRecipients.push({
-            recipientWallet,
-            ticketIndex: i,
-            status: "delivered",
-            lifecycleState: "claimed",
-            authorizationVerified: true,
-            didVerified: true,
-            releaseResult,
-          });
+          deliveredRecipients.push({ recipientWallet, ticketIndex: i, status: "delivered" });
         } else {
-          failedRecipients.push({
-            recipientWallet,
-            ticketIndex: i,
-            status: "release_failed",
-            lifecycleState: "pending_authorization",
-            reason: `Release rejected: ${releaseResult.meta?.TransactionResult ?? "unknown"}`,
-            authorizationVerified: true,
-            didVerified: true,
-          });
+          failedRecipients.push({ recipientWallet, ticketIndex: i, status: "release_failed" });
         }
       } catch (e) {
-        failedRecipients.push({
-          recipientWallet,
-          ticketIndex: i,
-          status: "release_failed",
-          lifecycleState: "pending_authorization",
-          reason: e instanceof Error ? e.message : "Release failed.",
-          authorizationVerified: true,
-          didVerified: true,
-        });
+        failedRecipients.push({ recipientWallet, ticketIndex: i, status: "release_failed" });
       }
     }
 
@@ -203,9 +204,7 @@ export async function POST(req: NextRequest) {
       deliveredRecipients,
       pendingRecipients,
       failedRecipients,
-      purchaseMode: recipients.length === 1 ? "solo" : "group",
-      groupSize: recipients.length,
-      recipients,
+      eventId: eventId || "12",
     });
   } finally {
     await client.disconnect();
