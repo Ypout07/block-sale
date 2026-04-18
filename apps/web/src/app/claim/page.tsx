@@ -5,38 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useProtocol } from "@/hooks/useProtocol";
 import { ALL_EVENTS, type Event } from "@/data/events";
-
-// ── Nav icons ─────────────────────────────────────────────────────────────────
-
-function IconHome({ active }: { active?: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#F06E1D" : "#636366"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 12L12 4l9 8" />
-      <path d="M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" />
-    </svg>
-  );
-}
-
-function IconTicketNav({ active }: { active?: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#F06E1D" : "#636366"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 9a1 1 0 011-1h.5a1.5 1.5 0 000-3H3a1 1 0 01-1-1V5a2 2 0 012-2h14a2 2 0 012 2v1a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3H20a1 1 0 011 1v1a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3H20a1 1 0 011 1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1a1 1 0 011-1h.5a1.5 1.5 0 000-3H3a1 1 0 01-1-1V9z" />
-    </svg>
-  );
-}
-
-function IconList({ active }: { active?: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#F06E1D" : "#636366"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="8" y1="6" x2="21" y2="6" />
-      <line x1="8" y1="12" x2="21" y2="12" />
-      <line x1="8" y1="18" x2="21" y2="18" />
-      <line x1="3" y1="6" x2="3.01" y2="6" strokeWidth="2.5" />
-      <line x1="3" y1="12" x2="3.01" y2="12" strokeWidth="2.5" />
-      <line x1="3" y1="18" x2="3.01" y2="18" strokeWidth="2.5" />
-    </svg>
-  );
-}
+import { SharedNavBar } from "@/components/SharedNavBar";
+import { WalletModal } from "@/components/WalletModal";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -56,48 +26,9 @@ type IncomingTicket = {
   claimedAt?: string;
 };
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 const byId = (id: string) => ALL_EVENTS.find((e) => e.id === id)!;
-
-const INITIAL_CLAIMS: IncomingTicket[] = [
-  {
-    claimId: "claim_001",
-    event: byId("13"), // Tyler, the Creator
-    buyerAddress: "rAlice7Kp3NmXqwZbDtF9sV2Yj8LcRe31",
-    amountRlusd: "115",
-    seatInfo: "Floor GA · Ticket #4421",
-    status: "pending_authorization",
-    createdAt: "2026-04-16T14:23:00Z",
-    txHash: "A3F2B91C4DE7089F3A2B561CE8D4F90A7B3E2C1D5F6A0B8E4C7D9F2A1B3C5E8",
-    issuanceId: "00130000F06E1D00000D",
-  },
-  {
-    claimId: "claim_002",
-    event: byId("10"), // Beyoncé
-    buyerAddress: "rBob8Mq4OnYrXaEwCuGt7Pk5Nb2Vh6Li1",
-    amountRlusd: "250",
-    seatInfo: "Section B · Row 3 · Seat 7",
-    status: "pending_authorization",
-    createdAt: "2026-04-15T09:11:00Z",
-    txHash: "D7C4E82B1F3A90E456BC2D87F1A3E45C8B7D2F9A0E3C6B1D4F7A2E5C8B0D3F6",
-    issuanceId: "00130000F06E1D00000A",
-  },
-  {
-    claimId: "claim_003",
-    event: byId("6"), // Olivia Rodrigo
-    buyerAddress: "rCarol2Jd5PsWnYvBrFk9Tq7Xm3Ue8Og2",
-    amountRlusd: "75",
-    seatInfo: "Section D · Row 8 · Seat 14",
-    status: "claimed",
-    createdAt: "2026-03-20T16:45:00Z",
-    txHash: "F1A3C56D9B2E8074A5F3C1E78D2B4F9A6C3E0B5D7F1A4C8E2B6D0F3A7C1E9B4",
-    issuanceId: "00130000F06E1D000006",
-    claimedAt: "2026-03-20T16:47:23Z",
-  },
-];
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function truncAddr(addr: string) {
   return `${addr.slice(0, 8)}...${addr.slice(-4)}`;
@@ -105,13 +36,6 @@ function truncAddr(addr: string) {
 
 function truncHash(hash: string) {
   return `${hash.slice(0, 8)}...${hash.slice(-8)}`;
-}
-
-function fmtTs(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short", day: "numeric", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
 }
 
 // ── Claim Overlay ─────────────────────────────────────────────────────────────
@@ -183,7 +107,7 @@ function ClaimOverlay({
     : "none";
 
   return (
-    <div className="fixed inset-0 z-50 max-w-md mx-auto" style={{ pointerEvents: visible ? "auto" : "none" }}>
+    <div className="fixed inset-0 z-[150] max-w-md mx-auto" style={{ pointerEvents: visible ? "auto" : "none" }}>
       {/* Backdrop */}
       <div
         className="absolute inset-0"
@@ -443,11 +367,12 @@ function ClaimRow({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ClaimPage() {
-  const { walletAddress, getClaims } = useProtocol();
+  const { walletAddress, getClaims, connectWallet } = useProtocol();
   const [claims, setClaims] = useState<IncomingTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(false);
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
 
   useEffect(() => {
     async function fetchClaims() {
@@ -549,37 +474,34 @@ export default function ClaimPage() {
       {/* Empty state */}
       {!loading && claims.length === 0 && (
         <div className="flex flex-col items-center justify-center py-28 px-8">
-          <p className="text-[18px] font-semibold text-white text-center">No incoming tickets</p>
-          <p className="text-[14px] mt-2 text-center" style={{ color: "rgba(255,255,255,0.35)" }}>
-            When someone gifts you a ticket it will appear here.
+          <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-5">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
+          </div>
+          <p className="text-[18px] font-semibold text-white text-center">No recent activity</p>
+          <p className="text-[14px] mt-2 text-center" style={{ color: "rgba(255,255,255,0.35)", maxWidth: "260px" }}>
+            When someone gifts you a ticket or you perform an action on-chain, it will appear here.
           </p>
+          <Link href="/" className="mt-8 px-8 py-3 rounded-full text-[14px] font-bold text-black" style={{ background: "#F06E1D" }}>
+            Go Home
+          </Link>
         </div>
       )}
 
-      {/* Bottom nav */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 max-w-md mx-auto flex items-center justify-around px-8 pt-3 pb-7"
-        style={{ background: "rgba(0,0,0,0.88)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.1)" }}
-      >
-        <Link href="/" className="flex flex-col items-center gap-1">
-          <IconHome />
-          <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>Home</span>
-        </Link>
-        <Link href="/tickets" className="flex flex-col items-center gap-1">
-          <IconTicketNav />
-          <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>My Tickets</span>
-        </Link>
-        <Link href="/claim" className="flex flex-col items-center gap-1">
-          <IconList active />
-          <span className="text-[10px] font-semibold" style={{ color: "#F06E1D" }}>Activity</span>
-        </Link>
-      </nav>
+      <SharedNavBar onWalletClick={() => setWalletModalOpen(true)} />
 
       <ClaimOverlay
         ticket={selectedTicket}
         visible={overlayVisible}
         onClose={closeClaim}
         onClaimed={handleClaimed}
+      />
+
+      <WalletModal
+        visible={walletModalOpen}
+        onClose={() => setWalletModalOpen(false)}
+        onConnect={connectWallet}
       />
     </div>
   );

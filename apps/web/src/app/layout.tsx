@@ -17,6 +17,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
+      <head>
+        <link href="https://fonts.googleapis.com/css2?family=Great+Vibe&family=Great+Vibes&display=swap" rel="stylesheet" />
+      </head>
       <body>{children}</body>
     </html>
   );

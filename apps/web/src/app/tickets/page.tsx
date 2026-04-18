@@ -5,36 +5,8 @@ import { useState, useEffect, useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { ALL_EVENTS, type Event } from "@/data/events";
 import { useProtocol } from "@/hooks/useProtocol";
-
-function IconHome({ active }: { active?: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#F06E1D" : "#636366"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 12L12 4l9 8" />
-      <path d="M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" />
-    </svg>
-  );
-}
-
-function IconTicketNav({ active }: { active?: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#F06E1D" : "#636366"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 9a1 1 0 011-1h.5a1.5 1.5 0 000-3H3a1 1 0 01-1-1V5a2 2 0 012-2h14a2 2 0 012 2v1a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3H20a1 1 0 011 1v1a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3H20a1 1 0 011 1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1a1 1 0 011-1h.5a1.5 1.5 0 000-3H3a1 1 0 01-1-1V9z" />
-    </svg>
-  );
-}
-
-function IconList({ active }: { active?: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#F06E1D" : "#636366"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="8" y1="6" x2="21" y2="6" />
-      <line x1="8" y1="12" x2="21" y2="12" />
-      <line x1="8" y1="18" x2="21" y2="18" />
-      <line x1="3" y1="6" x2="3.01" y2="6" strokeWidth="2.5" />
-      <line x1="3" y1="12" x2="3.01" y2="12" strokeWidth="2.5" />
-      <line x1="3" y1="18" x2="3.01" y2="18" strokeWidth="2.5" />
-    </svg>
-  );
-}
+import { SharedNavBar } from "@/components/SharedNavBar";
+import { WalletModal } from "@/components/WalletModal";
 
 type TicketStatus = "active" | "returned";
 
@@ -513,7 +485,7 @@ function Section({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function TicketsPage() {
-  const { walletAddress, returnTicket } = useProtocol();
+  const { walletAddress, connectWallet, returnTicket } = useProtocol();
   const [tickets, setTickets] = useState<PurchasedTicket[]>(INITIAL_TICKETS);
   const [chainTicketCount, setChainTicketCount] = useState<number | null>(null);
   const [chainLoading, setChainLoading] = useState(false);
@@ -522,6 +494,7 @@ export default function TicketsPage() {
   const [returnError, setReturnError] = useState("");
   const [qrTicketId, setQrTicketId] = useState<string | null>(null);
   const [qrVisible, setQrVisible] = useState(false);
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
 
   useEffect(() => {
     if (!walletAddress) { 
@@ -611,29 +584,36 @@ export default function TicketsPage() {
       </div>
 
       <div className="pt-2">
+        {tickets.length === 0 && !chainLoading && (
+          <div className="flex flex-col items-center justify-center py-28 px-8">
+            <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-5">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 9a1 1 0 011-1h.5a1.5 1.5 0 000-3H3a1 1 0 01-1-1V5a2 2 0 012-2h14a2 2 0 012 2v1a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3H20a1 1 0 011 1v1a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3H20a1 1 0 011 1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1a1 1 0 011-1h.5a1.5 1.5 0 000-3H3a1 1 0 01-1-1V9z" />
+              </svg>
+            </div>
+            <p className="text-[18px] font-semibold text-white text-center">No tickets found</p>
+            <p className="text-[14px] mt-2 text-center" style={{ color: "rgba(255,255,255,0.35)", maxWidth: "260px" }}>
+              Once you purchase or claim a ticket on the XRPL, it will appear here instantly.
+            </p>
+            <Link href="/" className="mt-8 px-8 py-3 rounded-full text-[14px] font-bold text-black" style={{ background: "#F06E1D" }}>
+              Explore Events
+            </Link>
+          </div>
+        )}
+
+        {chainLoading && (
+          <div className="flex justify-center py-20">
+            <div className="w-8 h-8 border-4 border-[#F06E1D] border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+
         <Section title="Ready for Entry" tickets={readyTickets} onReturnClick={setConfirmId} onQrClick={openQr} />
         <Section title="Recent Purchases" tickets={lastWeek} onReturnClick={setConfirmId} onQrClick={openQr} />
         <Section title="Last 30 Days" tickets={lastMonth} onReturnClick={setConfirmId} onQrClick={openQr} />
         <Section title="Older Tickets" tickets={anytime} onReturnClick={setConfirmId} onQrClick={openQr} />
       </div>
 
-      <nav
-        className="fixed bottom-0 left-0 right-0 max-w-md mx-auto flex items-center justify-around px-8 pt-3 pb-7"
-        style={{ background: "rgba(0,0,0,0.88)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.1)" }}
-      >
-        <Link href="/" className="flex flex-col items-center gap-1">
-          <IconHome />
-          <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>Home</span>
-        </Link>
-        <Link href="/tickets" className="flex flex-col items-center gap-1">
-          <IconTicketNav active />
-          <span className="text-[10px] font-semibold" style={{ color: "#F06E1D" }}>My Tickets</span>
-        </Link>
-        <Link href="/claim" className="flex flex-col items-center gap-1">
-          <IconList />
-          <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>Activity</span>
-        </Link>
-      </nav>
+      <SharedNavBar onWalletClick={() => setWalletModalOpen(true)} />
 
       <ConfirmReturnModal
         visible={confirmId !== null}
@@ -643,6 +623,12 @@ export default function TicketsPage() {
         onCancel={() => { setConfirmId(null); setReturnError(""); }}
       />
       <QrModal ticket={qrTicket} visible={qrVisible} onClose={closeQr} />
+
+      <WalletModal
+        visible={walletModalOpen}
+        onClose={() => setWalletModalOpen(false)}
+        onConnect={connectWallet}
+      />
     </div>
   );
 }

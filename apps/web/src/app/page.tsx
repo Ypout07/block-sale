@@ -1,153 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
+import { useState, useCallback, useMemo, useRef, useEffect, Suspense } from "react";
 import { ALL_EVENTS, type Event } from "@/data/events";
 import { BuyOverlay } from "@/components/BuyOverlay";
 import { useProtocol } from "@/hooks/useProtocol";
-
-// Pre-funded devnet wallet (Alice) from contracts/devnet.json
-const DEMO_ADDRESS = "rH1wbyfhqKKvybioodsh9ctZiRf8rS1hKS";
-
-function WalletModal({
-  visible,
-  onClose,
-  onConnect,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  onConnect: (address: string) => Promise<unknown>;
-}) {
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  async function handleConnect() {
-    const addr = input.trim();
-    if (!addr) return;
-    setError("");
-    setLoading(true);
-    try {
-      await onConnect(addr);
-      setInput("");
-      onClose();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Connection failed.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleDemoAlice() {
-    setInput("rH1wbyfhqKKvybioodsh9ctZiRf8rS1hKS");
-  }
-
-  function handleDemoBob() {
-    setInput("rp8CGFHmV53xKUuUQYfQFh26LBkYN1za8Z");
-  }
-
-  if (!visible) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 max-w-md mx-auto flex items-end" style={{ pointerEvents: "auto" }}>
-      <div
-        className="absolute inset-0"
-        style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
-        onClick={onClose}
-      />
-      <div
-        className="relative w-full rounded-t-3xl px-6 pt-5 pb-10"
-        style={{ background: "#1C1C1E", border: "1px solid rgba(255,255,255,0.08)", borderBottom: "none" }}
-      >
-        <div className="flex justify-center mb-4">
-          <div className="w-10 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.2)" }} />
-        </div>
-        <h2 className="text-white text-[20px] font-bold mb-1">Connect Wallet</h2>
-        <p className="text-[13px] mb-5" style={{ color: "rgba(255,255,255,0.4)" }}>
-          Enter your XRPL classic address to get started.
-        </p>
-
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-          autoComplete="off"
-          spellCheck={false}
-          className="w-full text-white text-[14px] rounded-2xl px-4 py-3.5 outline-none mb-3"
-          style={{
-            background: "#2C2C2E",
-            border: "1px solid rgba(255,255,255,0.1)",
-            fontFamily: "monospace",
-          }}
-          onKeyDown={(e) => e.key === "Enter" && handleConnect()}
-        />
-
-        {error && (
-          <p className="text-[12px] mb-3" style={{ color: "#c0392b" }}>{error}</p>
-        )}
-
-        <button
-          onClick={handleConnect}
-          disabled={!input.trim() || loading}
-          className="w-full py-3.5 rounded-2xl text-white font-bold text-[15px] mb-3"
-          style={{
-            background: input.trim() && !loading ? "#F06E1D" : "rgba(255,255,255,0.08)",
-            color: input.trim() && !loading ? "#fff" : "rgba(255,255,255,0.25)",
-          }}
-        >
-          {loading ? "Connecting…" : "Connect"}
-        </button>
-
-        <div className="flex gap-2">
-          <button
-            onClick={handleDemoAlice}
-            className="flex-1 py-3 rounded-2xl text-[13px] font-semibold"
-            style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}
-          >
-            Alice (Payer)
-          </button>
-          <button
-            onClick={handleDemoBob}
-            className="flex-1 py-3 rounded-2xl text-[13px] font-semibold"
-            style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}
-          >
-            Bob (Friend)
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function IconHome({ active }: { active?: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#F06E1D" : "#636366"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 12L12 4l9 8" />
-      <path d="M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" />
-    </svg>
-  );
-}
-
-function IconTicketNav({ active }: { active?: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#F06E1D" : "#636366"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 9a1 1 0 011-1h.5a1.5 1.5 0 000-3H3a1 1 0 01-1-1V5a2 2 0 012-2h14a2 2 0 012 2v1a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3H20a1 1 0 011 1v1a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3H20a1 1 0 011 1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1a1 1 0 011-1h.5a1.5 1.5 0 000-3H3a1 1 0 01-1-1V9z" />
-    </svg>
-  );
-}
-
-function IconList({ active }: { active?: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#F06E1D" : "#636366"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="8" y1="6" x2="21" y2="6" />
-      <line x1="8" y1="12" x2="21" y2="12" />
-      <line x1="8" y1="18" x2="21" y2="18" />
-      <line x1="3" y1="6" x2="3.01" y2="6" strokeWidth="2.5" />
-      <line x1="3" y1="12" x2="3.01" y2="12" strokeWidth="2.5" />
-      <line x1="3" y1="18" x2="3.01" y2="18" strokeWidth="2.5" />
-    </svg>
-  );
-}
+import { SharedNavBar } from "@/components/SharedNavBar";
+import { WalletModal } from "@/components/WalletModal";
 
 function EventCardInner({ event, onBuy }: { event: Event; onBuy: () => void }) {
   return (
@@ -209,7 +69,7 @@ function EventCardInner({ event, onBuy }: { event: Event; onBuy: () => void }) {
 function EventSection({ label, events, onBuy }: { label: string; events: Event[]; onBuy: (e: Event) => void }) {
   const id = `section-${label.replace(/\s+/g, '-')}`;
   return (
-    <div id={id} className="mb-8 relative" style={{ scrollMarginTop: "100px" }}>
+    <div id={id} className="mb-8 relative" style={{ scrollMarginTop: "110px" }}>
       <div className="flex items-center justify-between px-4 mb-4">
         <h2 className="text-[20px] font-bold text-white tracking-tight">{label}</h2>
         <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" }}>
@@ -241,11 +101,33 @@ function EventSection({ label, events, onBuy }: { label: string; events: Event[]
   );
 }
 
-export default function HomePage() {
-  const { walletAddress, connectWallet, disconnectWallet } = useProtocol();
+function IconSearch() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+}
+
+function HomePageContent() {
+  const { walletAddress, connectWallet } = useProtocol();
+  const searchParams = useSearchParams();
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [overlayEvent, setOverlayEvent] = useState<Event | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus search if navigated from another page via Search icon
+  useEffect(() => {
+    if (searchParams.get("focusSearch") === "true") {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }, 100);
+    }
+  }, [searchParams]);
 
   const openBuy = useCallback((event: Event) => {
     setOverlayEvent(event);
@@ -259,13 +141,27 @@ export default function HomePage() {
     setTimeout(() => setOverlayEvent(null), 540);
   }, []);
 
-  // Group events by label, preserving insertion order
-  const groups = new Map<string, Event[]>();
-  for (const event of ALL_EVENTS) {
-    const bucket = groups.get(event.label) ?? [];
-    bucket.push(event);
-    groups.set(event.label, bucket);
-  }
+  // Filter events based on search
+  const filteredEvents = useMemo(() => {
+    if (!searchQuery.trim()) return ALL_EVENTS;
+    const q = searchQuery.toLowerCase();
+    return ALL_EVENTS.filter(e => 
+      e.name.toLowerCase().includes(q) || 
+      e.subtitle.toLowerCase().includes(q) ||
+      e.label.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
+
+  // Group filtered events by label
+  const groups = useMemo(() => {
+    const map = new Map<string, Event[]>();
+    for (const event of filteredEvents) {
+      const bucket = map.get(event.label) ?? [];
+      bucket.push(event);
+      map.set(event.label, bucket);
+    }
+    return map;
+  }, [filteredEvents]);
 
   const labels = Array.from(groups.keys());
   const [activeTab, setActiveTab] = useState<string>(labels[0] || "");
@@ -278,10 +174,31 @@ export default function HomePage() {
     }
   };
 
+  const handleSearchClick = () => {
+    searchInputRef.current?.focus();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
-    <div className="min-h-screen flex flex-col max-w-md mx-auto pb-24" style={{ background: "#000" }}>
-      <div className="sticky top-0 z-40 pt-14 pb-4" style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)" }}>
-        {/* Tab strip - BlockSale name and old connect button removed */}
+    <div className="min-h-screen flex flex-col max-w-md mx-auto pb-32" style={{ background: "#000" }}>
+      <div className="sticky top-0 z-40 pt-10 pb-3" style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)" }}>
+        
+        {/* Top Search Bar - Raised and Slimmer */}
+        <div className="px-4 mb-4">
+          <div className="flex items-center gap-2.5 border-b border-white/10 pb-1.5">
+            <IconSearch />
+            <input 
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search for event"
+              className="flex-1 bg-transparent border-none outline-none text-white text-[15px] placeholder-[#8E8E93]"
+            />
+          </div>
+        </div>
+
+        {/* Tab strip */}
         <div className="flex gap-6 overflow-x-auto hide-scrollbar px-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {labels.map((label) => {
             const isActive = activeTab === label;
@@ -289,7 +206,7 @@ export default function HomePage() {
               <button
                 key={label}
                 onClick={() => handleTabClick(label)}
-                className="flex flex-col items-start gap-1.5 flex-shrink-0"
+                className="flex flex-col items-start gap-1 flex-shrink-0"
               >
                 <span className={`text-[13px] font-bold tracking-wider uppercase ${isActive ? 'text-white' : 'text-[#8E8E93]'}`}>
                   {label}
@@ -301,71 +218,26 @@ export default function HomePage() {
               </button>
             );
           })}
-          {/* Spacer for right edge of scrollable buttons */}
           <div style={{ minWidth: "16px", flexShrink: 0 }} />
         </div>
       </div>
 
       <div className="flex flex-col pt-2">
-        {Array.from(groups.entries()).map(([label, events]) => (
-          <EventSection key={label} label={label} events={events} onBuy={openBuy} />
-        ))}
+        {filteredEvents.length === 0 ? (
+          <div className="py-20 text-center">
+            <p className="text-[#8E8E93] text-[15px]">No events found for "{searchQuery}"</p>
+          </div>
+        ) : (
+          Array.from(groups.entries()).map(([label, events]) => (
+            <EventSection key={label} label={label} events={events} onBuy={openBuy} />
+          ))
+        )}
       </div>
 
-      {/* Bottom nav - Venmo Style */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 max-w-md mx-auto flex items-center justify-between px-6 pt-3 pb-8"
-        style={{ background: "rgba(0,0,0,0.92)", backdropFilter: "blur(24px)", borderTop: "1px solid rgba(255,255,255,0.08)" }}
-      >
-        {/* Left Side Group */}
-        <div className="flex items-center gap-10">
-          <Link href="/" className="flex flex-col items-center gap-1">
-            <IconHome active />
-            <span className="text-[10px] text-accent font-semibold">Home</span>
-          </Link>
-          <Link href="/tickets" className="flex flex-col items-center gap-1">
-            <IconTicketNav />
-            <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>Tickets</span>
-          </Link>
-        </div>
-
-        {/* Center Circular Wallet Button */}
-        <div className="relative -top-6">
-          <button
-            onClick={() => setWalletModalOpen(true)}
-            className="w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-transform active:scale-95"
-            style={{ 
-              background: "#F06E1D", 
-              boxShadow: "0 8px 24px rgba(240, 110, 29, 0.4)",
-              border: "4px solid #000"
-            }}
-          >
-            {walletAddress ? (
-              <div className="flex flex-col items-center">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#34C759] mb-1" />
-                <span className="text-[10px] text-white font-bold">{walletAddress.slice(-3)}</span>
-              </div>
-            ) : (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-            )}
-          </button>
-        </div>
-
-        {/* Right Side Group */}
-        <div className="flex items-center gap-10">
-          <Link href="/claim" className="flex flex-col items-center gap-1">
-            <IconList />
-            <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>Activity</span>
-          </Link>
-          <button onClick={() => setWalletModalOpen(true)} className="flex flex-col items-center gap-1 opacity-40">
-            <div className="w-[22px] h-[22px] rounded-full border border-[#636366] flex items-center justify-center text-[10px] font-bold text-[#636366]">?</div>
-            <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>Help</span>
-          </button>
-        </div>
-      </nav>
+      <SharedNavBar 
+        onWalletClick={() => setWalletModalOpen(true)} 
+        onSearchClick={handleSearchClick}
+      />
 
       <BuyOverlay event={overlayEvent} visible={overlayVisible} onClose={closeBuy} />
 
@@ -375,5 +247,13 @@ export default function HomePage() {
         onConnect={connectWallet}
       />
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomePageContent />
+    </Suspense>
   );
 }
