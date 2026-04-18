@@ -3,21 +3,24 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ALL_EVENTS } from "@/data/events";
-import { useWalletStore } from "@/store/useWalletStore";
+import { useProtocol } from "@/hooks/useProtocol";
+import { DEMO_BOB_ADDRESS } from "@/lib/protocolConfig";
+import type { BuyGroupTicketResult } from "@sdk/methods/buyGroupTicket";
 
 type Slot = { forMe: boolean; wallet: string };
 
 export default function BuyPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const walletAddress = useWalletStore(s => s.walletAddress);
+  const { walletAddress, buy } = useProtocol();
   const event = ALL_EVENTS.find(e => e.id === id);
 
   const [mounted, setMounted] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [slots, setSlots] = useState<Slot[]>([{ forMe: true, wallet: "" }]);
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<BuyGroupTicketResult | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 40);
@@ -46,9 +49,10 @@ export default function BuyPage() {
     );
   }
 
-  const myWallet = walletAddress ?? "rYourWalletAddress";
+  const myWallet = walletAddress ?? "";
   const total = quantity * event.price;
-  const canBuy = slots.every(s => s.forMe || s.wallet.trim().length > 0);
+  const recipientsValid = slots.every(s => s.forMe || s.wallet.trim().length > 0);
+  const canBuy = !!walletAddress && recipientsValid && !submitting;
 
   const setForMe = (i: number, val: boolean) => {
     if (val) {
@@ -68,15 +72,21 @@ export default function BuyPage() {
   };
 
   const handleBuy = async () => {
+    setError("");
     setSubmitting(true);
     const recipients = slots.map(s => s.forMe ? myWallet : s.wallet.trim());
-    console.log("buyGroupTicket", { venueId: event.id, payerWallet: myWallet, recipients, amountRlusd: total });
-    await new Promise(r => setTimeout(r, 1600));
-    setSubmitting(false);
-    setDone(true);
+    try {
+      const res = await buy({ recipients, amountRlusd: total });
+      setResult(res);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Purchase failed.");
+      setSubmitting(false);
+    }
   };
 
-  if (done) {
+  if (result) {
+    const pending = result.pendingRecipients;
+    const delivered = result.deliveredRecipients;
     return (
       <div
         style={{
@@ -101,9 +111,16 @@ export default function BuyPage() {
           <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 15, marginTop: 8 }}>
             {quantity === 1 ? "Your ticket is on its way." : `${quantity} tickets are on their way.`}
           </p>
-          <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, marginTop: 4 }}>
-            Recipients will receive a claim link.
-          </p>
+          {delivered.length > 0 && (
+            <p style={{ color: "#34C759", fontSize: 13, marginTop: 4 }}>
+              {delivered.length} delivered immediately.
+            </p>
+          )}
+          {pending.length > 0 && (
+            <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, marginTop: 4 }}>
+              {pending.length} recipient{pending.length > 1 ? "s" : ""} will receive a claim link.
+            </p>
+          )}
         </div>
         <button
           onClick={() => router.push("/")}
@@ -123,7 +140,7 @@ export default function BuyPage() {
   return (
     <div style={{ position: "fixed", inset: 0, background: "#000", overflow: "hidden" }}>
 
-      {/* Hero — top ~28% */}
+      {/* Hero */}
       <div
         style={{
           position: "absolute",
@@ -145,7 +162,6 @@ export default function BuyPage() {
             background: `linear-gradient(to bottom, rgba(${event.tint},0.65) 0%, rgba(0,0,0,0.78) 100%)`,
           }}
         >
-          {/* Back button */}
           <button
             onClick={() => router.back()}
             style={{
@@ -163,7 +179,6 @@ export default function BuyPage() {
             </svg>
           </button>
 
-          {/* Event info */}
           <div style={{ position: "absolute", bottom: 18, left: 20, right: 20 }}>
             <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", margin: 0, marginBottom: 3 }}>
               {event.trending}
@@ -191,14 +206,28 @@ export default function BuyPage() {
           paddingBottom: 108,
         }}
       >
-        {/* Handle bar */}
         <div style={{ display: "flex", justifyContent: "center", paddingTop: 12, paddingBottom: 6 }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.18)" }} />
         </div>
 
         <div style={{ padding: "12px 20px 0" }}>
+          {/* Wallet not connected warning */}
+          {!walletAddress && (
+            <div
+              style={{
+                background: "rgba(240,110,29,0.1)",
+                border: "1px solid rgba(240,110,29,0.25)",
+                borderRadius: 12,
+                padding: "10px 14px",
+                marginBottom: 16,
+              }}
+            >
+              <p style={{ color: "#F06E1D", fontSize: 13, fontWeight: 600, margin: 0 }}>
+                Connect your wallet on the home screen to purchase.
+              </p>
+            </div>
+          )}
 
-          {/* Quantity stepper */}
           <p style={{ color: "#fff", fontSize: 18, fontWeight: 700, margin: "0 0 14px" }}>How many tickets?</p>
           <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 24 }}>
             <button
@@ -229,7 +258,6 @@ export default function BuyPage() {
 
           <div style={{ height: 1, background: "rgba(255,255,255,0.07)", marginBottom: 22 }} />
 
-          {/* Ticket slots */}
           <p style={{ color: "#fff", fontSize: 18, fontWeight: 700, margin: "0 0 14px" }}>Who are the tickets for?</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {slots.map((slot, i) => (
@@ -240,7 +268,6 @@ export default function BuyPage() {
                 <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", margin: "0 0 10px" }}>
                   Ticket #{i + 1}
                 </p>
-                {/* Toggle pill */}
                 <div style={{ display: "flex", background: "#111", borderRadius: 10, padding: 3, marginBottom: slot.forMe ? 0 : 10 }}>
                   <button
                     onClick={() => setForMe(i, true)}
@@ -271,31 +298,46 @@ export default function BuyPage() {
                     For someone else
                   </button>
                 </div>
-                {/* Wallet input */}
                 {!slot.forMe && (
-                  <input
-                    placeholder="Their wallet address (rXXXXXX...)"
-                    value={slot.wallet}
-                    onChange={e => setWallet(i, e.target.value)}
-                    style={{
-                      width: "100%",
-                      background: "#111",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: 10,
-                      padding: "10px 12px",
-                      color: "#fff",
-                      fontSize: 14,
-                      fontFamily: "inherit",
-                      outline: "none",
-                      boxSizing: "border-box",
-                    }}
-                  />
+                  <div>
+                    <input
+                      placeholder="Their wallet address (rXXXXXX...)"
+                      value={slot.wallet}
+                      onChange={e => setWallet(i, e.target.value)}
+                      style={{
+                        width: "100%",
+                        background: "#111",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: 10,
+                        padding: "10px 12px",
+                        color: "#fff",
+                        fontSize: 14,
+                        fontFamily: "inherit",
+                        outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                    <button
+                      onClick={() => setWallet(i, DEMO_BOB_ADDRESS)}
+                      style={{
+                        marginTop: 6,
+                        background: "transparent",
+                        border: "none",
+                        color: "#F06E1D",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        padding: 0,
+                      }}
+                    >
+                      Use demo friend (Bob)
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
           </div>
 
-          {/* Total row */}
           <div
             style={{
               marginTop: 18, padding: "14px 16px",
@@ -314,7 +356,7 @@ export default function BuyPage() {
         </div>
       </div>
 
-      {/* Fixed confirm button */}
+      {/* Confirm button */}
       <div
         style={{
           position: "absolute",
@@ -326,23 +368,26 @@ export default function BuyPage() {
           transitionDelay: "0.06s",
         }}
       >
+        {error && (
+          <p style={{ color: "#c0392b", fontSize: 13, marginBottom: 8, textAlign: "center" }}>{error}</p>
+        )}
         <button
           onClick={handleBuy}
-          disabled={!canBuy || submitting}
+          disabled={!canBuy}
           style={{
             width: "100%",
             padding: "16px 0",
             borderRadius: 14,
             border: "none",
-            background: canBuy && !submitting ? "#F06E1D" : "rgba(255,255,255,0.08)",
-            color: canBuy && !submitting ? "#fff" : "rgba(255,255,255,0.25)",
+            background: canBuy ? "#F06E1D" : "rgba(255,255,255,0.08)",
+            color: canBuy ? "#fff" : "rgba(255,255,255,0.25)",
             fontSize: 17,
             fontWeight: 700,
-            cursor: canBuy && !submitting ? "pointer" : "default",
+            cursor: canBuy ? "pointer" : "default",
             transition: "background 0.2s ease, color 0.2s ease",
           }}
         >
-          {submitting ? "Processing..." : `Confirm Purchase · ${total} RLUSD`}
+          {submitting ? "Processing…" : !walletAddress ? "Connect wallet first" : `Confirm Purchase · ${total} RLUSD`}
         </button>
       </div>
     </div>

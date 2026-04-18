@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { ALL_EVENTS, type Event } from "@/data/events";
+import { useProtocol } from "@/hooks/useProtocol";
 
 function IconHome({ active }: { active?: boolean }) {
   return (
@@ -50,50 +51,7 @@ type PurchasedTicket = {
 
 const byId = (id: string) => ALL_EVENTS.find((e) => e.id === id)!;
 
-const INITIAL_TICKETS: PurchasedTicket[] = [
-  // Ready for Entry — event tonight, within 24h window
-  {
-    id: "t2",
-    event: byId("2"), // Coldplay
-    purchasedAt: new Date("2026-04-10"),
-    eventDateTime: new Date("2026-04-18T23:00:00"),
-    quantity: 2,
-    seatInfo: "Floor GA · Tickets #3341–3342",
-    status: "active",
-  },
-  // Returnable — event May 23, well outside 24h
-  {
-    id: "t1",
-    event: byId("1"), // The 1975
-    purchasedAt: new Date("2026-04-16"),
-    eventDateTime: new Date("2026-05-23T19:00:00"),
-    quantity: 2,
-    seatInfo: "Section A · Row 12 · Seats 14–15",
-    status: "active",
-  },
-  // Returned
-  {
-    id: "t3",
-    event: byId("4"), // Bad Bunny
-    purchasedAt: new Date("2026-01-05"),
-    eventDateTime: new Date("2026-07-02T20:00:00"),
-    quantity: 2,
-    seatInfo: "Section E · Row 6 · Seats 10–11",
-    status: "returned",
-    returnedAt: new Date("2026-01-20"),
-  },
-  // Returned
-  {
-    id: "t4",
-    event: byId("8"), // SZA
-    purchasedAt: new Date("2026-03-28"),
-    eventDateTime: new Date("2026-09-05T20:00:00"),
-    quantity: 1,
-    seatInfo: "Section B · Row 8 · Seat 22",
-    status: "returned",
-    returnedAt: new Date("2026-04-02"),
-  },
-];
+const INITIAL_TICKETS: PurchasedTicket[] = [];
 
 function fmt(date: Date): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -114,24 +72,6 @@ const QR_TTL = 90;
 const RING_R = 30;
 const RING_CIRC = 2 * Math.PI * RING_R;
 
-function makeQrValue(ticket: PurchasedTicket): string {
-  const now = new Date();
-  const nonce = Math.random().toString(16).slice(2, 10);
-  return JSON.stringify({
-    schemaVersion: 1,
-    purpose: "ticket-redemption",
-    ticketId: `txhash_${ticket.id}:rWalletDemo1234:0`,
-    wallet: "rN7n3473SaZBCG4dFL83w7PB5yBFGT1234",
-    venueId: "rVenuePoolKC2026xGt9",
-    issuanceId: "00130000F06E" + ticket.id.toUpperCase(),
-    didProvider: "mock-phone-proof",
-    didToken: "zkp-mock-" + nonce,
-    nonce,
-    issuedAt: now.toISOString(),
-    expiresAt: new Date(now.getTime() + QR_TTL * 1000).toISOString(),
-    qrHash: "sha256_mock_" + nonce,
-  });
-}
 
 function QrModal({
   ticket,
@@ -142,20 +82,37 @@ function QrModal({
   visible: boolean;
   onClose: () => void;
 }) {
+  const { generateQr } = useProtocol();
   const [secondsLeft, setSecondsLeft] = useState(QR_TTL);
   const [qrValue, setQrValue] = useState("");
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrError, setQrError] = useState("");
   const [slideY, setSlideY] = useState("100%");
+
+  const loadQr = useCallback(async (t: PurchasedTicket) => {
+    setQrLoading(true);
+    setQrError("");
+    try {
+      const res = await generateQr(t.id);
+      setQrValue(res.qrCodeText);
+    } catch (e: unknown) {
+      setQrError(e instanceof Error ? e.message : "QR generation failed.");
+      setQrValue("");
+    } finally {
+      setQrLoading(false);
+    }
+  }, [generateQr]);
 
   // Animate in/out and seed QR on open
   useEffect(() => {
     if (visible && ticket) {
-      setQrValue(makeQrValue(ticket));
       setSecondsLeft(QR_TTL);
+      loadQr(ticket);
       requestAnimationFrame(() => requestAnimationFrame(() => setSlideY("0%")));
     } else {
       setSlideY("100%");
     }
-  }, [visible, ticket?.id]);
+  }, [visible, ticket?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Countdown tick
   useEffect(() => {
@@ -166,8 +123,8 @@ function QrModal({
 
   function handleRefresh() {
     if (!ticket) return;
-    setQrValue(makeQrValue(ticket));
     setSecondsLeft(QR_TTL);
+    loadQr(ticket);
   }
 
   if (!ticket) return null;
@@ -228,16 +185,25 @@ function QrModal({
 
         {/* QR code */}
         <div className="flex justify-center px-6">
-          <div
-            className="rounded-2xl p-5"
-            style={{
-              background: "#fff",
-              filter: qrExpired ? "grayscale(1) opacity(0.3)" : "none",
-              transition: "filter 0.5s",
-            }}
-          >
-            <QRCodeSVG value={qrValue || " "} size={220} level="M" />
-          </div>
+          {qrError ? (
+            <div
+              className="rounded-2xl p-5 flex items-center justify-center"
+              style={{ background: "#1C1C1E", border: "1px solid rgba(255,255,255,0.08)", width: 230, height: 230 }}
+            >
+              <p className="text-center text-[12px]" style={{ color: "#c0392b" }}>{qrError}</p>
+            </div>
+          ) : (
+            <div
+              className="rounded-2xl p-5"
+              style={{
+                background: "#fff",
+                filter: (qrExpired || qrLoading) ? "grayscale(1) opacity(0.3)" : "none",
+                transition: "filter 0.5s",
+              }}
+            >
+              <QRCodeSVG value={qrValue || " "} size={220} level="M" />
+            </div>
+          )}
         </div>
 
         {/* Timer / Refresh */}
@@ -439,10 +405,14 @@ function TicketCard({
 
 function ConfirmReturnModal({
   visible,
+  returning,
+  error,
   onConfirm,
   onCancel,
 }: {
   visible: boolean;
+  returning: boolean;
+  error: string;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -470,11 +440,24 @@ function ConfirmReturnModal({
         <p className="text-[14px] mt-2.5 text-center leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
           This action is final and cannot be undone. Your ticket will be marked as returned and funds will be credited back to your wallet.
         </p>
+        {error && (
+          <p className="text-[12px] mt-3 text-center" style={{ color: "#c0392b" }}>{error}</p>
+        )}
         <div className="flex flex-col gap-3 mt-7">
-          <button onClick={onConfirm} className="w-full py-3.5 rounded-2xl text-white text-[15px] font-bold" style={{ background: "#c0392b" }}>
-            Yes, Return Ticket
+          <button
+            onClick={onConfirm}
+            disabled={returning}
+            className="w-full py-3.5 rounded-2xl text-white text-[15px] font-bold"
+            style={{ background: returning ? "rgba(192,57,43,0.4)" : "#c0392b" }}
+          >
+            {returning ? "Processing…" : "Yes, Return Ticket"}
           </button>
-          <button onClick={onCancel} className="w-full py-3.5 rounded-2xl text-[15px] font-semibold" style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.75)" }}>
+          <button
+            onClick={onCancel}
+            disabled={returning}
+            className="w-full py-3.5 rounded-2xl text-[15px] font-semibold"
+            style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.75)" }}
+          >
             Cancel
           </button>
         </div>
@@ -530,10 +513,25 @@ function Section({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function TicketsPage() {
+  const { walletAddress, returnTicket } = useProtocol();
   const [tickets, setTickets] = useState<PurchasedTicket[]>(INITIAL_TICKETS);
+  const [chainTicketCount, setChainTicketCount] = useState<number | null>(null);
+  const [chainLoading, setChainLoading] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [returning, setReturning] = useState(false);
+  const [returnError, setReturnError] = useState("");
   const [qrTicketId, setQrTicketId] = useState<string | null>(null);
   const [qrVisible, setQrVisible] = useState(false);
+
+  useEffect(() => {
+    if (!walletAddress) { setChainTicketCount(null); return; }
+    setChainLoading(true);
+    fetch(`/api/devnet/tickets?wallet=${walletAddress}`)
+      .then(r => r.json())
+      .then(d => setChainTicketCount(d.ticketCount ?? 0))
+      .catch(() => setChainTicketCount(null))
+      .finally(() => setChainLoading(false));
+  }, [walletAddress]);
 
   const now = Date.now();
   const sevenDaysAgo = new Date(now - 7 * 24 * 3_600_000);
@@ -546,10 +544,19 @@ export default function TicketsPage() {
   const lastMonth = restTickets.filter((t) => t.purchasedAt >= thirtyDaysAgo && t.purchasedAt < sevenDaysAgo);
   const anytime = restTickets.filter((t) => t.purchasedAt < thirtyDaysAgo);
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!confirmId) return;
-    setTickets((prev) => prev.map((t) => t.id === confirmId ? { ...t, status: "returned" as TicketStatus, returnedAt: new Date() } : t));
-    setConfirmId(null);
+    setReturning(true);
+    setReturnError("");
+    try {
+      await returnTicket(confirmId);
+      setTickets((prev) => prev.map((t) => t.id === confirmId ? { ...t, status: "returned" as TicketStatus, returnedAt: new Date() } : t));
+      setConfirmId(null);
+    } catch (e: unknown) {
+      setReturnError(e instanceof Error ? e.message : "Return failed.");
+    } finally {
+      setReturning(false);
+    }
   }
 
   function openQr(id: string) {
@@ -578,6 +585,33 @@ export default function TicketsPage() {
       </div>
 
       <div className="pt-2">
+        {/* Live on-chain balance from XRPL devnet */}
+        {walletAddress && (
+          <div className="mx-4 mb-6 rounded-2xl px-4 py-4" style={{ background: "rgba(240,110,29,0.08)", border: "1px solid rgba(240,110,29,0.2)" }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: "#F06E1D" }}>
+                  On-Chain · XRPL Devnet
+                </p>
+                <p className="text-white text-[22px] font-bold leading-none">
+                  {chainLoading ? "…" : chainTicketCount !== null ? `${chainTicketCount} ticket${chainTicketCount !== 1 ? "s" : ""}` : "—"}
+                </p>
+                <p className="text-[12px] mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  {walletAddress.slice(0, 8)}…{walletAddress.slice(-6)}
+                </p>
+              </div>
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center"
+                style={{ background: "rgba(240,110,29,0.15)" }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F06E1D" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        )}
+
         <Section title="Ready for Entry" tickets={readyTickets} onReturnClick={setConfirmId} onQrClick={openQr} />
         <Section title="Recent Purchases" tickets={lastWeek} onReturnClick={setConfirmId} onQrClick={openQr} />
         <Section title="Last 30 Days" tickets={lastMonth} onReturnClick={setConfirmId} onQrClick={openQr} />
@@ -602,7 +636,13 @@ export default function TicketsPage() {
         </Link>
       </nav>
 
-      <ConfirmReturnModal visible={confirmId !== null} onConfirm={handleConfirm} onCancel={() => setConfirmId(null)} />
+      <ConfirmReturnModal
+        visible={confirmId !== null}
+        returning={returning}
+        error={returnError}
+        onConfirm={handleConfirm}
+        onCancel={() => { setConfirmId(null); setReturnError(""); }}
+      />
       <QrModal ticket={qrTicket} visible={qrVisible} onClose={closeQr} />
     </div>
   );

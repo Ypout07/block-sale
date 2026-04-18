@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { useProtocol } from "@/hooks/useProtocol";
 import { ALL_EVENTS, type Event } from "@/data/events";
 
 // ── Nav icons ─────────────────────────────────────────────────────────────────
@@ -127,10 +128,12 @@ function ClaimOverlay({
   onClaimed: (claimId: string) => void;
 }) {
   const router = useRouter();
+  const { claim } = useProtocol();
   const [phase, setPhase] = useState<ClaimPhase>("preview");
   const [slideIn, setSlideIn] = useState(false);
   const [checkDraw, setCheckDraw] = useState(false);
   const [detailsIn, setDetailsIn] = useState(false);
+  const [claimError, setClaimError] = useState("");
 
   // Animate in when opened
   useEffect(() => {
@@ -155,10 +158,16 @@ function ClaimOverlay({
 
   async function handleClaim() {
     if (!ticket || phase !== "preview") return;
+    setClaimError("");
     setPhase("claiming");
-    await new Promise((r) => setTimeout(r, 3500));
-    setPhase("success");
-    onClaimed(ticket.claimId);
+    try {
+      await claim(ticket.claimId);
+      setPhase("success");
+      onClaimed(ticket.claimId);
+    } catch (e: unknown) {
+      setClaimError(e instanceof Error ? e.message : "Claim failed.");
+      setPhase("preview");
+    }
   }
 
   if (!ticket) return null;
@@ -355,18 +364,23 @@ function ClaimOverlay({
               </div>
             ) : !isSuccess ? (
               /* Preview / Claiming — gift info */
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white text-[13px] font-semibold leading-tight">Gift from</p>
-                  <p className="text-[11px] mt-0.5 font-mono" style={{ color: "rgba(255,255,255,0.4)" }}>
-                    {truncAddr(ticket.buyerAddress)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-white text-[13px] font-semibold">{ticket.amountRlusd} RLUSD</p>
-                  <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-                    {ticket.seatInfo}
-                  </p>
+              <div>
+                {claimError && (
+                  <p className="text-[12px] mb-2 text-center" style={{ color: "#c0392b" }}>{claimError}</p>
+                )}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white text-[13px] font-semibold leading-tight">Gift from</p>
+                    <p className="text-[11px] mt-0.5 font-mono" style={{ color: "rgba(255,255,255,0.4)" }}>
+                      {truncAddr(ticket.buyerAddress)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-white text-[13px] font-semibold">{ticket.amountRlusd} RLUSD</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                      {ticket.seatInfo}
+                    </p>
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -429,9 +443,40 @@ function ClaimRow({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ClaimPage() {
-  const [claims, setClaims] = useState<IncomingTicket[]>(INITIAL_CLAIMS);
+  const { walletAddress, getClaims } = useProtocol();
+  const [claims, setClaims] = useState<IncomingTicket[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(false);
+
+  useEffect(() => {
+    async function fetchClaims() {
+      if (!walletAddress) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const rawClaims = await getClaims();
+        const formatted = rawClaims.map((c: any) => ({
+          claimId: c.claimId,
+          event: byId(c.venueId) || byId("13"), // fallback to Tyler if ID mismatch
+          buyerAddress: c.buyerAddress,
+          amountRlusd: c.amountRlusd,
+          seatInfo: "General Admission",
+          status: c.status,
+          createdAt: c.createdAt,
+          txHash: "XRPL_HASH_PENDING",
+          issuanceId: c.issuanceId,
+        }));
+        setClaims(formatted);
+      } catch (e) {
+        console.error("Failed to fetch claims", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchClaims();
+  }, [walletAddress, getClaims]);
 
   const pending = claims.filter((c) => c.status === "pending_authorization");
   const past = claims.filter((c) => c.status === "claimed");
@@ -463,8 +508,14 @@ export default function ClaimPage() {
       {/* Header Spacer */}
       <div className="pt-14" />
 
+      {loading && (
+        <div className="flex justify-center py-20">
+          <div className="w-8 h-8 border-4 border-[#F06E1D] border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
       {/* Pending section */}
-      {pending.length > 0 && (
+      {!loading && pending.length > 0 && (
         <div className="mt-2">
           <div className="px-4 mb-4">
             <h2 className="text-[22px] font-bold text-white tracking-tight uppercase">
@@ -480,7 +531,7 @@ export default function ClaimPage() {
       )}
 
       {/* Past claims section */}
-      {past.length > 0 && (
+      {!loading && past.length > 0 && (
         <div className="mt-8">
           <div className="px-4 mb-4">
             <h2 className="text-[22px] font-bold text-white tracking-tight uppercase">
@@ -496,7 +547,7 @@ export default function ClaimPage() {
       )}
 
       {/* Empty state */}
-      {claims.length === 0 && (
+      {!loading && claims.length === 0 && (
         <div className="flex flex-col items-center justify-center py-28 px-8">
           <p className="text-[18px] font-semibold text-white text-center">No incoming tickets</p>
           <p className="text-[14px] mt-2 text-center" style={{ color: "rgba(255,255,255,0.35)" }}>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { type Event } from "@/data/events";
-import { useWalletStore } from "@/store/useWalletStore";
+import { useProtocol } from "@/hooks/useProtocol";
 
 type Slot = { forMe: boolean; wallet: string };
 
@@ -13,7 +13,7 @@ type Props = {
 };
 
 export function BuyOverlay({ event, visible, onClose }: Props) {
-  const walletAddress = useWalletStore(s => s.walletAddress);
+  const { walletAddress, buy } = useProtocol();
   const [quantity, setQuantity] = useState(1);
   const [slots, setSlots] = useState<Slot[]>([{ forMe: true, wallet: "" }]);
   const [submitting, setSubmitting] = useState(false);
@@ -75,12 +75,20 @@ export function BuyOverlay({ event, visible, onClose }: Props) {
   };
 
   const handleBuy = async () => {
+    if (!event) return;
     setSubmitting(true);
-    const recipients = slots.map(s => s.forMe ? myWallet : s.wallet.trim());
-    console.log("buyGroupTicket", { venueId: event.id, payerWallet: myWallet, recipients, amountRlusd: total });
-    await new Promise(r => setTimeout(r, 1600));
-    setSubmitting(false);
-    setDone(true);
+    try {
+      const recipients = slots.map(s => s.forMe ? myWallet : s.wallet.trim());
+      await buy({
+        recipients,
+        amountRlusd: total,
+      });
+      setDone(true);
+    } catch (e: any) {
+      alert(e.message || "Purchase failed.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
