@@ -524,12 +524,38 @@ export default function TicketsPage() {
   const [qrVisible, setQrVisible] = useState(false);
 
   useEffect(() => {
-    if (!walletAddress) { setChainTicketCount(null); return; }
+    if (!walletAddress) { 
+      setChainTicketCount(null); 
+      setTickets([]);
+      return; 
+    }
     setChainLoading(true);
     fetch(`/api/devnet/tickets?wallet=${walletAddress}`)
       .then(r => r.json())
-      .then(d => setChainTicketCount(d.ticketCount ?? 0))
-      .catch(() => setChainTicketCount(null))
+      .then(d => {
+        const count = d.ticketCount ?? 0;
+        setChainTicketCount(count);
+        
+        // Map the on-chain balance to actual UI cards
+        if (count > 0) {
+          const mockTickets: PurchasedTicket[] = Array.from({ length: count }, (_, i) => ({
+            id: `chain-${i}`,
+            event: byId("13"), // Default to Tyler for the demo
+            purchasedAt: new Date(),
+            eventDateTime: new Date("2026-04-18T23:00:00"),
+            quantity: 1,
+            seatInfo: `Floor GA · Ticket #${4421 + i}`,
+            status: "active" as TicketStatus
+          }));
+          setTickets(mockTickets);
+        } else {
+          setTickets([]);
+        }
+      })
+      .catch(() => {
+        setChainTicketCount(null);
+        setTickets([]);
+      })
       .finally(() => setChainLoading(false));
   }, [walletAddress]);
 
@@ -585,33 +611,6 @@ export default function TicketsPage() {
       </div>
 
       <div className="pt-2">
-        {/* Live on-chain balance from XRPL devnet */}
-        {walletAddress && (
-          <div className="mx-4 mb-6 rounded-2xl px-4 py-4" style={{ background: "rgba(240,110,29,0.08)", border: "1px solid rgba(240,110,29,0.2)" }}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: "#F06E1D" }}>
-                  On-Chain · XRPL Devnet
-                </p>
-                <p className="text-white text-[22px] font-bold leading-none">
-                  {chainLoading ? "…" : chainTicketCount !== null ? `${chainTicketCount} ticket${chainTicketCount !== 1 ? "s" : ""}` : "—"}
-                </p>
-                <p className="text-[12px] mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-                  {walletAddress.slice(0, 8)}…{walletAddress.slice(-6)}
-                </p>
-              </div>
-              <div
-                className="w-10 h-10 rounded-full flex items-center justify-center"
-                style={{ background: "rgba(240,110,29,0.15)" }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F06E1D" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 6L9 17l-5-5" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        )}
-
         <Section title="Ready for Entry" tickets={readyTickets} onReturnClick={setConfirmId} onQrClick={openQr} />
         <Section title="Recent Purchases" tickets={lastWeek} onReturnClick={setConfirmId} onQrClick={openQr} />
         <Section title="Last 30 Days" tickets={lastMonth} onReturnClick={setConfirmId} onQrClick={openQr} />

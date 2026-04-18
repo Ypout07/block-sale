@@ -281,33 +281,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto pb-24" style={{ background: "#000" }}>
       <div className="sticky top-0 z-40 pt-14 pb-4" style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)" }}>
-        {/* Wallet bar */}
-        <div className="flex items-center justify-between px-4 mb-3">
-          <span className="text-[16px] font-bold tracking-tight" style={{ color: "#F06E1D" }}>BlockSale</span>
-          {walletAddress ? (
-            <button
-              onClick={disconnectWallet}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold"
-              style={{ background: "rgba(240,110,29,0.15)", color: "#F06E1D", border: "1px solid rgba(240,110,29,0.3)" }}
-            >
-              <span
-                className="inline-block w-1.5 h-1.5 rounded-full"
-                style={{ background: "#34C759" }}
-              />
-              {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
-            </button>
-          ) : (
-            <button
-              onClick={() => setWalletModalOpen(true)}
-              className="px-3 py-1.5 rounded-full text-[12px] font-semibold"
-              style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.12)" }}
-            >
-              Connect Wallet
-            </button>
-          )}
-        </div>
-
-        {/* Tab strip */}
+        {/* Tab strip - BlockSale name and old connect button removed */}
         <div className="flex gap-6 overflow-x-auto hide-scrollbar px-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {labels.map((label) => {
             const isActive = activeTab === label;
@@ -338,23 +312,59 @@ export default function HomePage() {
         ))}
       </div>
 
-      {/* Bottom nav */}
+      {/* Bottom nav - Venmo Style */}
       <nav
-        className="fixed bottom-0 left-0 right-0 max-w-md mx-auto flex items-center justify-around px-8 pt-3 pb-7"
-        style={{ background: "rgba(0,0,0,0.88)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.1)" }}
+        className="fixed bottom-0 left-0 right-0 max-w-md mx-auto flex items-center justify-between px-6 pt-3 pb-8"
+        style={{ background: "rgba(0,0,0,0.92)", backdropFilter: "blur(24px)", borderTop: "1px solid rgba(255,255,255,0.08)" }}
       >
-        <Link href="/" className="flex flex-col items-center gap-1">
-          <IconHome active />
-          <span className="text-[10px] text-accent font-semibold">Home</span>
-        </Link>
-        <Link href="/tickets" className="flex flex-col items-center gap-1">
-          <IconTicketNav />
-          <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>My Tickets</span>
-        </Link>
-        <Link href="/claim" className="flex flex-col items-center gap-1">
-          <IconList />
-          <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>Activity</span>
-        </Link>
+        {/* Left Side Group */}
+        <div className="flex items-center gap-10">
+          <Link href="/" className="flex flex-col items-center gap-1">
+            <IconHome active />
+            <span className="text-[10px] text-accent font-semibold">Home</span>
+          </Link>
+          <Link href="/tickets" className="flex flex-col items-center gap-1">
+            <IconTicketNav />
+            <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>Tickets</span>
+          </Link>
+        </div>
+
+        {/* Center Circular Wallet Button */}
+        <div className="relative -top-6">
+          <button
+            onClick={() => setWalletModalOpen(true)}
+            className="w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-transform active:scale-95"
+            style={{ 
+              background: "#F06E1D", 
+              boxShadow: "0 8px 24px rgba(240, 110, 29, 0.4)",
+              border: "4px solid #000"
+            }}
+          >
+            {walletAddress ? (
+              <div className="flex flex-col items-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#34C759] mb-1" />
+                <span className="text-[10px] text-white font-bold">{walletAddress.slice(-3)}</span>
+              </div>
+            ) : (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            )}
+          </button>
+        </div>
+
+        {/* Right Side Group */}
+        <div className="flex items-center gap-10">
+          <Link href="/claim" className="flex flex-col items-center gap-1">
+            <IconList />
+            <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>Activity</span>
+          </Link>
+          <button onClick={() => setWalletModalOpen(true)} className="flex flex-col items-center gap-1 opacity-40">
+            <div className="w-[22px] h-[22px] rounded-full border border-[#636366] flex items-center justify-center text-[10px] font-bold text-[#636366]">?</div>
+            <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>Help</span>
+          </button>
+        </div>
       </nav>
 
       <BuyOverlay event={overlayEvent} visible={overlayVisible} onClose={closeBuy} />

@@ -35,7 +35,7 @@ async function submitTx(
   }
   const signed = wallet.sign(prepared as Parameters<typeof wallet.sign>[0]);
   const result = await client.submitAndWait(signed.tx_blob);
-  return result.result as TxResult;
+  return result.result as unknown as TxResult;
 }
 
 async function isRecipientAuthorized(client: Client, wallet: string): Promise<boolean> {
@@ -74,6 +74,21 @@ export async function POST(req: NextRequest) {
     const payerWalletObj = Wallet.fromSeed(payerSeed);
     const venueWalletObj = Wallet.fromSeed(DEMO_SEEDS[VENUE_ADDRESS]);
 
+    // Ensure Venue has a trust line for RLUSD
+    try {
+      const lines = await client.request({ command: "account_lines", account: VENUE_ADDRESS });
+      const hasLine = lines.result.lines.some((l: any) => l.currency === "USD" && l.account === RLUSD_ISSUER);
+      if (!hasLine) {
+        await submitTx(client, venueWalletObj, {
+          TransactionType: "TrustSet",
+          Account: VENUE_ADDRESS,
+          LimitAmount: { currency: "USD", issuer: RLUSD_ISSUER, value: "1000000" },
+        });
+      }
+    } catch (e) {
+      console.error("Venue trustline setup failed", e);
+    }
+
     // Step 1: RLUSD payment from buyer to venue
     let paymentResult: TxResult;
     try {
@@ -107,21 +122,10 @@ export async function POST(req: NextRequest) {
 
       let authorized = await isRecipientAuthorized(client, recipientWallet);
 
-      // Auto-authorize if we have the recipient's seed (demo wallets only)
-      if (!authorized) {
-        const recipientSeed = DEMO_SEEDS[recipientWallet];
-        if (recipientSeed) {
-          try {
-            await submitTx(client, Wallet.fromSeed(recipientSeed), {
-              TransactionType: "MPTokenAuthorize",
-              Account: recipientWallet,
-              MPTokenIssuanceID: MPT_ISSUANCE_ID,
-            });
-            authorized = true;
-          } catch {
-            // best-effort — continue to check state
-          }
-        }
+      // FOR DEMO: If the recipient is NOT the payer, we WANT it to be pending
+      // so the other person can show the "Claim" flow on their phone.
+      if (recipientWallet !== payerWallet) {
+        authorized = false;
       }
 
       if (!authorized) {
