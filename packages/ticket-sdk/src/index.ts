@@ -5,22 +5,26 @@ import { returnTicket, type ReturnTicketInput } from "./methods/returnTicket";
 import { verifyDid } from "./oracle/mockDidVerifier";
 
 export class Protocol {
-  constructor(public readonly venueId: string) {}
+  constructor(
+    public readonly venueId: string,
+    public readonly rlusdIssuer: string = "rHKhEQp8kK9x3zPqXYx5E9LgTHTQyBhhzE", // Mock/Template issuer
+    public readonly mptAssetId: string = ""
+  ) {}
 
   createClient(url?: string) {
     return createXrplClient(url);
   }
 
   async buyGiftTickets(input: BuyGroupTicketInput) {
-    return buyGroupTicket(input);
+    return buyGroupTicket(input, this.rlusdIssuer);
   }
 
   async claimTicket(input: ClaimTicketInput) {
-    return claimTicket(input);
+    return claimTicket(input, this.mptAssetId);
   }
 
   async returnTicket(input: ReturnTicketInput) {
-    return returnTicket(input);
+    return returnTicket(input, this.mptAssetId);
   }
 
   async verifyWallet(wallet: string) {
