@@ -35,71 +35,89 @@ function IconList({ active }: { active?: boolean }) {
   );
 }
 
-function EventCard({ event, showLabel, onBuy }: { event: Event; showLabel: boolean; onBuy: () => void }) {
+function EventCardInner({ event, onBuy }: { event: Event; onBuy: () => void }) {
   return (
-    <div>
-      {showLabel && (
-        <div className="flex items-baseline justify-between px-4 mb-3">
-          <h2 className="text-[22px] font-bold text-white tracking-tight">{event.label}</h2>
-          <button className="text-accent text-[15px] font-medium">See All</button>
-        </div>
-      )}
-      <div className="px-4">
-        <div
-          className="rounded-3xl overflow-hidden"
-          style={{
-            backgroundImage: `url(${event.photo})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center top",
-          }}
-        >
-          {/* Tinted + dark-bottom gradient overlay */}
-          <div style={{ background: `linear-gradient(to bottom, rgba(${event.tint},0.62) 0%, rgba(${event.tint},0.28) 40%, rgba(0,0,0,0.60) 70%, rgba(0,0,0,0.90) 100%)` }}>
-            {/* Content area */}
-            <div className="flex flex-col justify-between p-5" style={{ height: "380px" }}>
-              <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.75)" }}>
-                {event.label}
-              </span>
-              <div>
-                <p className="text-[12px] font-semibold uppercase tracking-wider mb-2" style={{ color: "rgba(255,255,255,0.60)" }}>
-                  {event.trending}
-                </p>
-                <h2 className="text-white text-[30px] font-bold leading-tight tracking-tight drop-shadow-lg">
-                  {event.name}
-                </h2>
-                <p className="text-white font-bold text-[17px] leading-tight mt-1 drop-shadow">
-                  {event.subtitle}
-                </p>
-                <p className="text-[14px] mt-2 leading-snug" style={{ color: "rgba(255,255,255,0.65)" }}>
-                  {event.description}
-                </p>
-              </div>
-            </div>
-
-            {/* Bottom App Store–style row */}
-            <div
-              className="px-5 py-3.5 flex items-center justify-between"
-              style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(12px)" }}
-            >
-              <div>
-                <p className="text-white text-[13px] font-semibold leading-tight">
-                  {event.venue.split("·")[0].trim()}
-                </p>
-                <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.50)" }}>{event.date}</p>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.45)" }}>From {event.price} RLUSD</span>
-                <button
-                  onClick={onBuy}
-                  className="text-white text-[13px] font-bold px-4 py-1.5 rounded-full"
-                  style={{ background: "#F06E1D" }}
-                >
-                  Buy
-                </button>
-              </div>
-            </div>
+    <div
+      className="rounded-3xl overflow-hidden"
+      style={{
+        backgroundImage: `url(${event.photo})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center top",
+      }}
+    >
+      <div style={{ background: `linear-gradient(to bottom, rgba(${event.tint},0.62) 0%, rgba(${event.tint},0.28) 40%, rgba(0,0,0,0.60) 70%, rgba(0,0,0,0.90) 100%)` }}>
+        <div className="flex flex-col justify-between p-5" style={{ height: "380px" }}>
+          <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.75)" }}>
+            {event.label}
+          </span>
+          <div>
+            <p className="text-[12px] font-semibold uppercase tracking-wider mb-2" style={{ color: "rgba(255,255,255,0.60)" }}>
+              {event.trending}
+            </p>
+            <h2 className="text-white text-[30px] font-bold leading-tight tracking-tight drop-shadow-lg">
+              {event.name}
+            </h2>
+            <p className="text-white font-bold text-[17px] leading-tight mt-1 drop-shadow">
+              {event.subtitle}
+            </p>
+            <p className="text-[14px] mt-2 leading-snug" style={{ color: "rgba(255,255,255,0.65)" }}>
+              {event.description}
+            </p>
           </div>
         </div>
+
+        <div
+          className="px-5 py-3.5 flex items-center justify-between"
+          style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(12px)" }}
+        >
+          <div>
+            <p className="text-white text-[13px] font-semibold leading-tight">
+              {event.venue.split("·")[0].trim()}
+            </p>
+            <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.50)" }}>{event.date}</p>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.45)" }}>From {event.price} RLUSD</span>
+            <button
+              onClick={onBuy}
+              className="text-white text-[13px] font-bold px-4 py-1.5 rounded-full"
+              style={{ background: "#F06E1D" }}
+            >
+              Buy
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EventSection({ label, events, onBuy }: { label: string; events: Event[]; onBuy: (e: Event) => void }) {
+  return (
+    <div className="mb-8">
+      <div className="flex items-baseline justify-between px-4 mb-3">
+        <h2 className="text-[22px] font-bold text-white tracking-tight">{label}</h2>
+        <button className="text-accent text-[15px] font-medium">See All</button>
+      </div>
+      <div
+        className="flex gap-4 hide-scrollbar"
+        style={{
+          overflowX: "auto",
+          paddingLeft: "16px",
+          scrollSnapType: "x mandatory",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        {events.map((event) => (
+          <div
+            key={event.id}
+            style={{ width: "min(calc(100vw - 4rem), 24rem)", flexShrink: 0, scrollSnapAlign: "start" }}
+          >
+            <EventCardInner event={event} onBuy={() => onBuy(event)} />
+          </div>
+        ))}
+        {/* Right-edge spacer so the last card doesn't flush against the viewport */}
+        <div style={{ minWidth: "16px", flexShrink: 0 }} />
       </div>
     </div>
   );
@@ -111,7 +129,6 @@ export default function HomePage() {
 
   const openBuy = useCallback((event: Event) => {
     setOverlayEvent(event);
-    // Mount first, then animate in on next frame
     requestAnimationFrame(() => {
       requestAnimationFrame(() => setOverlayVisible(true));
     });
@@ -122,20 +139,20 @@ export default function HomePage() {
     setTimeout(() => setOverlayEvent(null), 540);
   }, []);
 
-  const renderedLabels = new Set<string>();
+  // Group events by label, preserving insertion order
+  const groups = new Map<string, Event[]>();
+  for (const event of ALL_EVENTS) {
+    const bucket = groups.get(event.label) ?? [];
+    bucket.push(event);
+    groups.set(event.label, bucket);
+  }
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto pb-24" style={{ background: "#000" }}>
-
-      {/* All events — vertical feed */}
-      <div className="flex flex-col gap-6 pt-14">
-        {ALL_EVENTS.map((event) => {
-          const showLabel = !renderedLabels.has(event.label);
-          if (showLabel) renderedLabels.add(event.label);
-          return (
-            <EventCard key={event.id} event={event} showLabel={showLabel} onBuy={() => openBuy(event)} />
-          );
-        })}
+      <div className="flex flex-col pt-14">
+        {Array.from(groups.entries()).map(([label, events]) => (
+          <EventSection key={label} label={label} events={events} onBuy={openBuy} />
+        ))}
       </div>
 
       {/* Bottom nav */}
@@ -147,7 +164,7 @@ export default function HomePage() {
           <IconHome active />
           <span className="text-[10px] text-accent font-semibold">Home</span>
         </Link>
-        <Link href="/claim" className="flex flex-col items-center gap-1">
+        <Link href="/tickets" className="flex flex-col items-center gap-1">
           <IconTicketNav />
           <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>My Tickets</span>
         </Link>
@@ -157,7 +174,6 @@ export default function HomePage() {
         </Link>
       </nav>
 
-      {/* Buy overlay — slides up in-place */}
       <BuyOverlay event={overlayEvent} visible={overlayVisible} onClose={closeBuy} />
     </div>
   );

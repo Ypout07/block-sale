@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { type Event } from "@/data/events";
 import { useWalletStore } from "@/store/useWalletStore";
 
@@ -19,12 +19,19 @@ export function BuyOverlay({ event, visible, onClose }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
+  // Drag state
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const startY = useRef(0);
+
   useEffect(() => {
     if (event) {
       setQuantity(1);
       setSlots([{ forMe: true, wallet: "" }]);
       setSubmitting(false);
       setDone(false);
+      setDragY(0);
+      setDragging(false);
     }
   }, [event?.id]);
 
@@ -76,6 +83,32 @@ export function BuyOverlay({ event, visible, onClose }: Props) {
     setDone(true);
   };
 
+  const handlePointerDown = (e: React.PointerEvent) => {
+    setDragging(true);
+    startY.current = e.clientY;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragging) return;
+    const delta = e.clientY - startY.current;
+    if (delta > 0) {
+      setDragY(delta);
+    } else {
+      // Small resistance when pulling up
+      setDragY(delta * 0.1);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (dragY > 120) {
+      onClose();
+    }
+    setDragging(false);
+    setDragY(0);
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+  };
+
   if (done) {
     return (
       <div style={{
@@ -100,13 +133,15 @@ export function BuyOverlay({ event, visible, onClose }: Props) {
           <p style={{ color: "#8E8E93", fontSize: 16, textAlign: "center", margin: 0, maxWidth: 280 }}>
             {quantity === 1 ? "Your ticket is ready." : `${quantity} tickets are ready. Recipients will receive a claim link.`}
           </p>
-          <button onClick={onClose} style={{ marginTop: 24, width: "100%", background: "#2C2C2E", color: "#FFF", padding: 16, borderRadius: 16, fontSize: 17, fontWeight: 600, border: "none", cursor: "pointer" }}>
+          <button onClick={onClose} style={{ marginTop: 24, width: "100%", background: "#F06E1D", color: "#FFF", padding: 16, borderRadius: 16, fontSize: 17, fontWeight: 600, border: "none", cursor: "pointer" }}>
             Close
           </button>
         </div>
       </div>
     );
   }
+
+  const transformStyle = visible ? `translateY(${dragY > 0 ? dragY : dragY}px)` : "translateY(100%)";
 
   return (
     <div style={{
@@ -131,84 +166,109 @@ export function BuyOverlay({ event, visible, onClose }: Props) {
         borderTopLeftRadius: 32,
         borderTopRightRadius: 32,
         padding: "20px 24px 40px",
-        transform: visible ? "translateY(0)" : "translateY(100%)",
-        transition: "transform 0.5s cubic-bezier(0.32,0.72,0,1)",
+        transform: transformStyle,
+        transition: dragging ? "none" : "transform 0.5s cubic-bezier(0.32,0.72,0,1)",
         maxHeight: "90vh",
         display: "flex",
         flexDirection: "column"
       }}>
-        <div style={{ width: 40, height: 5, background: "#48484A", borderRadius: 3, margin: "0 auto 24px" }} />
-        
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
-          <img src={event.photo} alt={event.name} style={{ width: 64, height: 64, borderRadius: 16, objectFit: "cover", background: "#2C2C2E" }} />
-          <div style={{ flex: 1 }}>
-            <h2 style={{ color: "#FFF", fontSize: 20, fontWeight: 600, margin: "0 0 2px" }}>{event.name}</h2>
-            <p style={{ color: "#8E8E93", fontSize: 15, margin: 0 }}>{event.subtitle}</p>
-          </div>
-          <div style={{ background: "rgba(255,255,255,0.1)", padding: "6px 12px", borderRadius: 100 }}>
-            <span style={{ color: "#FFF", fontSize: 15, fontWeight: 600 }}>{event.price} RLUSD</span>
-          </div>
+        {/* Handle stays fixed at top and is draggable */}
+        <div 
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          style={{ 
+            width: "100%", height: 32, margin: "-20px 0 0", flexShrink: 0,
+            display: "flex", justifyContent: "center", alignItems: "center",
+            cursor: "grab", touchAction: "none" // Prevent native scrolling on the handle
+          }}
+        >
+          <div style={{ width: 40, height: 5, background: dragging ? "#8E8E93" : "#48484A", borderRadius: 3, transition: "background 0.2s" }} />
         </div>
         
+        {/* Everything else is inside the scrollable area */}
         <div style={{ overflowY: "auto", flex: 1, paddingBottom: 20 }}>
           
-          <div style={{ background: "#2C2C2E", borderRadius: 16, overflow: "hidden", marginBottom: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderBottom: "1px solid #38383A" }}>
-              <span style={{ color: "#FFF", fontSize: 16 }}>Account</span>
-              <span style={{ color: "#8E8E93", fontSize: 16 }}>{myWallet.slice(0,6)}...{myWallet.slice(-4)}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32, marginTop: 8 }}>
+            <img src={event.photo} alt={event.name} style={{ width: 64, height: 64, borderRadius: 16, objectFit: "cover", background: "#2C2C2E" }} />
+            <div style={{ flex: 1 }}>
+              <h2 style={{ color: "#FFF", fontSize: 20, fontWeight: 600, margin: "0 0 2px" }}>{event.name}</h2>
+              <p style={{ color: "#8E8E93", fontSize: 15, margin: 0 }}>{event.subtitle}</p>
             </div>
-            
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px" }}>
-              <span style={{ color: "#FFF", fontSize: 16 }}>Tickets</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 16, background: "#1C1C1E", borderRadius: 8, padding: "4px 8px" }}>
-                <button 
-                  onClick={() => setQuantity(q => Math.max(1, q - 1))} 
-                  style={{ width: 30, height: 30, borderRadius: "50%", background: "transparent", border: "none", color: quantity > 1 ? "#0A84FF" : "#48484A", fontSize: 24, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
-                >−</button>
-                <span style={{ color: "#FFF", fontSize: 16, fontWeight: 600, width: 20, textAlign: "center" }}>{quantity}</span>
-                <button 
-                  onClick={() => setQuantity(q => Math.min(8, q + 1))} 
-                  style={{ width: 30, height: 30, borderRadius: "50%", background: "transparent", border: "none", color: quantity < 8 ? "#0A84FF" : "#48484A", fontSize: 24, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
-                >+</button>
-              </div>
+            <div style={{ background: "rgba(240,110,29,0.15)", padding: "6px 12px", borderRadius: 100 }}>
+              <span style={{ color: "#F06E1D", fontSize: 15, fontWeight: 700 }}>{event.price} RLUSD</span>
             </div>
           </div>
 
-          <h3 style={{ color: "#8E8E93", fontSize: 13, textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.05em", margin: "0 0 8px 16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px", marginBottom: 32 }}>
+            <span style={{ color: "#FFF", fontSize: 16 }}>Account</span>
+            <span style={{ color: "#8E8E93", fontSize: 16 }}>{myWallet.slice(0,6)}...{myWallet.slice(-4)}</span>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 40 }}>
+            <p style={{ color: "#fff", fontSize: 18, fontWeight: 700, margin: "0 0 16px" }}>How many tickets?</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+              <button
+                onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                style={{
+                  width: 48, height: 48, borderRadius: "50%",
+                  background: "#2C2C2E", border: "none",
+                  color: quantity > 1 ? "#F06E1D" : "#8E8E93", fontSize: 24, fontWeight: 300,
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "color 0.2s ease"
+                }}
+              >−</button>
+              <span style={{ color: "#fff", fontSize: 32, fontWeight: 700, minWidth: 40, textAlign: "center" }}>
+                {quantity}
+              </span>
+              <button
+                onClick={() => setQuantity(q => Math.min(8, q + 1))}
+                style={{
+                  width: 48, height: 48, borderRadius: "50%",
+                  background: "#2C2C2E", border: "none",
+                  color: quantity < 8 ? "#F06E1D" : "#8E8E93", fontSize: 24, fontWeight: 300,
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "color 0.2s ease"
+                }}
+              >+</button>
+            </div>
+          </div>
+
+          <h3 style={{ color: "#8E8E93", fontSize: 13, textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.05em", margin: "0 0 16px 4px" }}>
             Recipients
           </h3>
           
-          <div style={{ background: "#2C2C2E", borderRadius: 16, overflow: "hidden" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: "0 4px" }}>
             {slots.map((slot, i) => (
-              <div key={i} style={{ padding: 16, borderBottom: i < slots.length - 1 ? "1px solid #38383A" : "none" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: (i === 0 && slot.forMe) ? 0 : 12 }}>
+              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ color: "#FFF", fontSize: 16, fontWeight: 500 }}>Ticket {i + 1}</span>
                   {i === 0 && (
-                    <div style={{ display: "flex", background: "#1C1C1E", borderRadius: 8, padding: 3 }}>
+                    <div style={{ display: "flex", background: "#2C2C2E", borderRadius: 8, padding: 3 }}>
                       <button
                         onClick={() => setForMe(i, true)}
                         style={{
-                          padding: "4px 12px", borderRadius: 6, border: "none",
-                          background: slot.forMe ? "#48484A" : "transparent",
+                          padding: "6px 16px", borderRadius: 6, border: "none",
+                          background: slot.forMe ? "#F06E1D" : "transparent",
                           color: slot.forMe ? "#FFF" : "#8E8E93",
-                          fontSize: 13, fontWeight: 600, cursor: "pointer",
+                          fontSize: 14, fontWeight: 600, cursor: "pointer",
                           transition: "all 0.2s ease",
+                          boxShadow: slot.forMe ? "0 1px 3px rgba(0,0,0,0.3)" : "none"
                         }}
-                      >Me</button>
+                      >For me</button>
                       <button
                         onClick={() => setForMe(i, false)}
                         style={{
-                          padding: "4px 12px", borderRadius: 6, border: "none",
-                          background: !slot.forMe ? "#48484A" : "transparent",
+                          padding: "6px 16px", borderRadius: 6, border: "none",
+                          background: !slot.forMe ? "#F06E1D" : "transparent",
                           color: !slot.forMe ? "#FFF" : "#8E8E93",
-                          fontSize: 13, fontWeight: 600, cursor: "pointer",
+                          fontSize: 14, fontWeight: 600, cursor: "pointer",
                           transition: "all 0.2s ease",
+                          boxShadow: !slot.forMe ? "0 1px 3px rgba(0,0,0,0.3)" : "none"
                         }}
                       >Gift</button>
                     </div>
-                  )}
-                  {i > 0 && (
-                    <span style={{ color: "#8E8E93", fontSize: 14 }}>Guest</span>
                   )}
                 </div>
                 
@@ -218,8 +278,9 @@ export function BuyOverlay({ event, visible, onClose }: Props) {
                     value={slot.wallet}
                     onChange={e => setWalletVal(i, e.target.value)}
                     style={{
-                      width: "100%", background: "#1C1C1E", border: "1px solid #38383A",
-                      borderRadius: 10, padding: "12px 16px", color: "#FFF", fontSize: 15,
+                      width: "100%", background: "transparent", 
+                      border: "none", borderBottom: "1px solid #38383A",
+                      borderRadius: 0, padding: "8px 0", color: "#FFF", fontSize: 15,
                       outline: "none", boxSizing: "border-box"
                     }}
                   />
@@ -229,8 +290,9 @@ export function BuyOverlay({ event, visible, onClose }: Props) {
           </div>
         </div>
         
-        <div style={{ marginTop: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, padding: "0 4px" }}>
+        {/* Footer actions fixed at bottom */}
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #2C2C2E", flexShrink: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, padding: "0 4px" }}>
             <span style={{ color: "#8E8E93", fontSize: 16 }}>Total</span>
             <span style={{ color: "#FFF", fontSize: 24, fontWeight: 700 }}>{total} RLUSD</span>
           </div>
@@ -240,7 +302,7 @@ export function BuyOverlay({ event, visible, onClose }: Props) {
             disabled={!canBuy || submitting}
             style={{ 
               width: "100%", 
-              background: canBuy && !submitting ? "#0A84FF" : "#2C2C2E", 
+              background: canBuy && !submitting ? "#F06E1D" : "#2C2C2E", 
               color: canBuy && !submitting ? "#FFF" : "#8E8E93", 
               padding: 16, 
               borderRadius: 16, 
