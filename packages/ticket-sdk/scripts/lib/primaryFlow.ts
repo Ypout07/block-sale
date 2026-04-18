@@ -7,7 +7,12 @@ const {
   Wallet,
   MPTokenIssuanceCreateFlags,
   AccountSetAsfFlags,
+  BatchFlags,
+  GlobalFlags,
   TrustSetFlags,
+  combineBatchSigners,
+  signMultiBatch,
+  decode,
   encode,
   decodeAccountID
 } = xrpl;
@@ -203,7 +208,7 @@ export async function submitTx(
 
   const prepared = await client.autofill(tx);
   if (typeof prepared.LastLedgerSequence === "number") {
-    prepared.LastLedgerSequence += 20;
+    prepared.LastLedgerSequence += 100;
   }
   prepared.Fee = await hookAwareFee(client, wallet, prepared as unknown as Record<string, unknown>);
 
@@ -223,6 +228,75 @@ export async function submitTx(
   return summary;
 }
 
+export async function prepareInnerBatchTx(
+  client: InstanceType<typeof Client>,
+  tx: Record<string, unknown>
+) {
+  const prepared = await client.autofill(tx);
+  prepared.Flags = (typeof prepared.Flags === "number" ? prepared.Flags : 0) | GlobalFlags.tfInnerBatchTxn;
+  prepared.Fee = "0";
+  prepared.SigningPubKey = "";
+  prepared.LastLedgerSequence = undefined;
+  prepared.TxnSignature = undefined;
+  prepared.Signers = undefined;
+  return prepared;
+}
+
+export async function submitNativeBatch(input: {
+  client: InstanceType<typeof Client>;
+  outerAccountWallet: InstanceType<typeof Wallet>;
+  signingWallets: Record<string, InstanceType<typeof Wallet>>;
+  innerTransactions: Record<string, unknown>[];
+  label: string;
+}) {
+  const preparedInnerTransactions = [];
+  for (const tx of input.innerTransactions) {
+    preparedInnerTransactions.push({
+      RawTransaction: await prepareInnerBatchTx(input.client, tx)
+    });
+  }
+
+  const outerBatch = await input.client.autofill({
+    TransactionType: "Batch",
+    Account: input.outerAccountWallet.address,
+    Flags: BatchFlags.tfAllOrNothing,
+    RawTransactions: preparedInnerTransactions
+  });
+
+  const involvedAccounts = Array.from(
+    new Set(preparedInnerTransactions.map((rawTx) => String((rawTx.RawTransaction as Record<string, unknown>).Account)))
+  );
+
+  const signedBatchCopies: Array<Record<string, unknown>> = [];
+  for (const account of involvedAccounts) {
+    const signerWallet = input.signingWallets[account];
+    if (!signerWallet) {
+      throw new Error(`Missing signing wallet for batched account ${account}.`);
+    }
+
+    const batchCopy = structuredClone(outerBatch);
+    signMultiBatch(signerWallet as any, batchCopy as any, {
+      batchAccount: account
+    });
+    signedBatchCopies.push(batchCopy as Record<string, unknown>);
+  }
+
+  const combinedBlob = combineBatchSigners(signedBatchCopies as any);
+  const combinedBatch = decode(combinedBlob) as Record<string, unknown>;
+  const outerSigned = input.outerAccountWallet.sign(combinedBatch as any);
+  const wrapper = await input.client.submitAndWait(outerSigned.tx_blob);
+  const summary = summarizeTx(input.label, wrapper.result);
+
+  console.log(`\n--- ${input.label} ---`);
+  console.log(JSON.stringify(wrapper.result, null, 2));
+
+  if (!summary.accepted) {
+    throw new Error(`${input.label} failed with ${summary.transactionResult}`);
+  }
+
+  return summary;
+}
+
 export async function enableIssuerDefaultRipple(
   client: InstanceType<typeof Client>,
   issuerWallet: InstanceType<typeof Wallet>
@@ -236,6 +310,24 @@ export async function enableIssuerDefaultRipple(
       SetFlag: AccountSetAsfFlags.asfDefaultRipple
     },
     "Enable Default Ripple On Mock RLUSD Issuer"
+  );
+}
+
+export async function clearDepositAuth(
+  client: InstanceType<typeof Client>,
+  wallet: InstanceType<typeof Wallet>,
+  label = "Clear DepositAuth"
+) {
+  return submitTx(
+    client,
+    wallet,
+    {
+      TransactionType: "AccountSet",
+      Account: wallet.address,
+      ClearFlag: AccountSetAsfFlags.asfDepositAuth
+    },
+    label,
+    { throwOnFail: false }
   );
 }
 

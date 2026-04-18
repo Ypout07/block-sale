@@ -4,13 +4,17 @@ import {
   type PaymentApproval,
   type PrimaryPurchaseRequirements
 } from "../policy/primaryPurchasePolicy.js";
-import { verifyDid } from "../oracle/mockDidVerifier.js";
+import {
+  mockDidAuthProvider,
+  type DidAuthProvider,
+  type WalletDidAuth
+} from "../oracle/mockDidVerifier.js";
 
 export type BuyGroupTicketRuntime = {
   xrplClient?: {
     request: (request: Record<string, unknown>) => Promise<{ result: unknown }>;
   };
-  verifyDidProof?: (wallet: string) => Promise<{ wallet: string; verified: boolean; provider: string }>;
+  authProvider?: DidAuthProvider;
   paymentTxResult?: unknown;
   submitPayment?: (paymentTx: Payment) => Promise<unknown>;
   submitTicketRelease?: (
@@ -25,6 +29,8 @@ export type BuyGroupTicketInput = {
   payerWallet: string;
   recipients: string[];
   amountRlusd: number;
+  payerDidAuth?: WalletDidAuth;
+  recipientDidAuth?: Record<string, WalletDidAuth>;
   runtime?: BuyGroupTicketRuntime;
 };
 
@@ -70,6 +76,8 @@ export type PendingTicketClaim = {
   issuanceId: string;
   ticketIndex: number;
   amountRlusd: string;
+  currency: string;
+  issuerAddress: string;
   status: "pending_authorization" | "pending_did_verification";
   createdAt: string;
 };
@@ -198,11 +206,15 @@ async function isRecipientAuthorized(
 
 async function requireDidVerification(
   wallet: string,
-  verifyDidProof?: (wallet: string) => Promise<{ wallet: string; verified: boolean; provider: string }>
+  artifact: WalletDidAuth | undefined,
+  authProvider?: DidAuthProvider
 ) {
-  const result = verifyDidProof ? await verifyDidProof(wallet) : await verifyDid(wallet);
+  const result = await (authProvider ?? mockDidAuthProvider).verifyWallet({
+    wallet,
+    artifact
+  });
   if (!result.verified) {
-    throw new Error(`DID verification failed for wallet ${wallet}.`);
+    throw new Error(result.reason ?? `DID verification failed for wallet ${wallet}.`);
   }
   return result;
 }
@@ -304,7 +316,7 @@ export async function buyGroupTicket(
     };
   }
 
-  await requireDidVerification(input.payerWallet, runtime?.verifyDidProof);
+  await requireDidVerification(input.payerWallet, input.payerDidAuth, runtime?.authProvider);
 
   const paymentResult = runtime.paymentTxResult ?? (await runtime.submitPayment?.(plan.paymentTx));
   if (!paymentResult) {
@@ -345,9 +357,10 @@ export async function buyGroupTicket(
       continue;
     }
 
-    const didVerification = await (runtime.verifyDidProof
-      ? runtime.verifyDidProof(instruction.recipientWallet)
-      : verifyDid(instruction.recipientWallet));
+    const didVerification = await (runtime.authProvider ?? mockDidAuthProvider).verifyWallet({
+      wallet: instruction.recipientWallet,
+      artifact: input.recipientDidAuth?.[instruction.recipientWallet]
+    });
     if (!didVerification.verified) {
       const pendingClaimId = buildPendingClaimId(
         verified.approval.paymentTxHash,
@@ -363,6 +376,8 @@ export async function buyGroupTicket(
         issuanceId: mptAssetId,
         ticketIndex: instruction.ticketIndex,
         amountRlusd: verified.approval.deliveredAmount,
+        currency: verified.approval.currency,
+        issuerAddress: verified.approval.issuerAddress,
         status: "pending_did_verification",
         createdAt: new Date().toISOString()
       };
@@ -397,6 +412,8 @@ export async function buyGroupTicket(
         issuanceId: mptAssetId,
         ticketIndex: instruction.ticketIndex,
         amountRlusd: verified.approval.deliveredAmount,
+        currency: verified.approval.currency,
+        issuerAddress: verified.approval.issuerAddress,
         status: "pending_authorization",
         createdAt: new Date().toISOString()
       };

@@ -9,6 +9,7 @@ import {
   submitTx,
   type SubmittedTx
 } from "./primaryFlow.ts";
+import type { WaitlistEntryRecord } from "../../src/methods/joinWaitlist.ts";
 
 type ConsumedApprovalRecord = {
   consumedAt: string;
@@ -20,6 +21,7 @@ type ConsumedApprovalRecord = {
 type PolicyState = {
   approvals: Record<string, ConsumedApprovalRecord>;
   pendingClaims: Record<string, PendingClaimRecord>;
+  waitlistEntries: Record<string, WaitlistEntryRecord>;
 };
 
 function statePath() {
@@ -28,7 +30,7 @@ function statePath() {
 
 function loadState(filePath = statePath()): PolicyState {
   if (!fs.existsSync(filePath)) {
-    return { approvals: {}, pendingClaims: {} };
+    return { approvals: {}, pendingClaims: {}, waitlistEntries: {} };
   }
 
   return JSON.parse(fs.readFileSync(filePath, "utf8")) as PolicyState;
@@ -40,7 +42,7 @@ function saveState(state: PolicyState, filePath = statePath()) {
 }
 
 export function resetPolicyState() {
-  saveState({ approvals: {}, pendingClaims: {} });
+  saveState({ approvals: {}, pendingClaims: {}, waitlistEntries: {} });
 }
 
 export function getPolicyStatePath() {
@@ -120,6 +122,13 @@ export function updateClaimRecord(
   updates:
     | { status: "claimed"; claimedAt: string; releasedTxHash?: string }
     | { status: "redeemed"; redeemedAt: string; redemptionHash: string }
+    | {
+        status: "returned";
+        returnedAt: string;
+        returnBatchHash?: string;
+        refundTxHash?: string;
+        waitlistAllocationId?: string;
+      }
 ) {
   const state = loadState();
   const pendingClaim = state.pendingClaims[claimId];
@@ -138,7 +147,7 @@ export function updateClaimRecord(
       claimedAt: updates.claimedAt,
       releasedTxHash: updates.releasedTxHash
     };
-  } else {
+  } else if (updates.status === "redeemed") {
     if (pendingClaim.status !== "claimed") {
       throw new Error(`Pending claim ${claimId} is ${pendingClaim.status} and cannot be redeemed.`);
     }
@@ -149,8 +158,67 @@ export function updateClaimRecord(
       redeemedAt: updates.redeemedAt,
       redemptionHash: updates.redemptionHash
     };
+  } else {
+    if (pendingClaim.status !== "claimed") {
+      throw new Error(`Pending claim ${claimId} is ${pendingClaim.status} and cannot be returned.`);
+    }
+
+    state.pendingClaims[claimId] = {
+      ...pendingClaim,
+      status: updates.status,
+      returnedAt: updates.returnedAt,
+      returnBatchHash: updates.returnBatchHash,
+      refundTxHash: updates.refundTxHash,
+      waitlistAllocationId: updates.waitlistAllocationId
+    };
   }
 
+  saveState(state);
+}
+
+export function storeWaitlistEntry(entry: WaitlistEntryRecord) {
+  const state = loadState();
+  state.waitlistEntries[entry.waitlistId] = entry;
+  saveState(state);
+}
+
+export function loadWaitlistEntry(waitlistId: string): WaitlistEntryRecord | null {
+  const state = loadState();
+  return state.waitlistEntries[waitlistId] ?? null;
+}
+
+export function listWaitlistEntries(venueId?: string): WaitlistEntryRecord[] {
+  const state = loadState();
+  const entries = Object.values(state.waitlistEntries);
+  return venueId ? entries.filter((entry) => entry.venueId === venueId) : entries;
+}
+
+export function getNextActiveWaitlistEntry(venueId: string): WaitlistEntryRecord | null {
+  const entries = listWaitlistEntries(venueId)
+    .filter((entry) => entry.status === "active")
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+
+  return entries[0] ?? null;
+}
+
+export function updateWaitlistEntry(
+  waitlistId: string,
+  updates:
+    | { status: "active"; escrowTxHash?: string; escrowSequence?: number; activatedAt?: string }
+    | { status: "allocated"; allocatedAt: string; ticketId: string; escrowFinishHash?: string }
+    | { status: "returned"; returnedAt: string }
+    | { status: "expired"; expiredAt: string }
+) {
+  const state = loadState();
+  const entry = state.waitlistEntries[waitlistId];
+  if (!entry) {
+    throw new Error(`Waitlist entry ${waitlistId} was not found.`);
+  }
+
+  state.waitlistEntries[waitlistId] = {
+    ...entry,
+    ...updates
+  };
   saveState(state);
 }
 

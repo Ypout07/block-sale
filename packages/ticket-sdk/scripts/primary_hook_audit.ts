@@ -1,8 +1,9 @@
 import fs from "node:fs";
-import { Protocol } from "../dist/index.js";
+import { createCredentialAuthProvider, Protocol } from "../dist/index.js";
 import type { SubmittedTx } from "./lib/primaryFlow.ts";
 import {
   PRIMARY_PURCHASE_AMOUNT,
+  clearDepositAuth,
   ensureMockUsdBalance,
   ensureUsdTrustline,
   getPrimaryAuditReportPath,
@@ -12,7 +13,10 @@ import {
 import {
   consumePendingClaim,
   getPolicyStatePath,
+  getNextActiveWaitlistEntry,
   loadPendingClaim,
+  loadWaitlistEntry,
+  storeWaitlistEntry,
   resetPolicyState,
   storePendingClaim,
   updateClaimRecord
@@ -54,6 +58,12 @@ async function runAudit() {
     resetPolicyState();
     const candidateFund = await context.client.fundWallet();
     const candidateWallet = candidateFund.wallet;
+    const waitlistFund = await context.client.fundWallet();
+    const waitlistWallet = waitlistFund.wallet;
+    const escrowVaultFund = await context.client.fundWallet();
+    const escrowVaultWallet = escrowVaultFund.wallet;
+
+    await clearDepositAuth(context.client, escrowVaultWallet, "Audit: Clear DepositAuth On Escrow Vault");
 
     await ensureUsdTrustline(
       context.client,
@@ -69,11 +79,30 @@ async function runAudit() {
       "Issuer Funds Candidate With Mock RLUSD"
     );
 
+    const credentialProvider = createCredentialAuthProvider({
+      xrplClient: context.client,
+      defaultIssuerAddress: context.issuerWallet.address
+    });
     const protocol = new Protocol(
       context.vendorWallet.address,
       context.issuerWallet.address,
-      context.issuanceId
+      context.issuanceId,
+      credentialProvider
     );
+    const issueCredentialAuth = (wallet: { address: string; seed?: string }) =>
+      protocol.authenticateWallet({
+        wallet: wallet.address,
+        issuerAddress: context.issuerWallet.address,
+        xrplClient: context.client,
+        submitCredentialCreate: (tx) =>
+          submitTx(context.client, context.issuerWallet, tx, `Audit: CredentialCreate For ${wallet.address}`),
+        submitCredentialAccept: (tx) =>
+          submitTx(context.client, wallet as any, tx, `Audit: CredentialAccept For ${wallet.address}`)
+      });
+    const buyerDidAuth = await issueCredentialAuth(context.buyerWallet);
+    const secondaryDidAuth = await issueCredentialAuth(context.secondaryWallet);
+    const candidateDidAuth = await issueCredentialAuth(candidateWallet);
+    const waitlistDidAuth = await issueCredentialAuth(waitlistWallet);
 
     const submitBuyerPayment = (wallet: { address: string; seed?: string }, label: string) => {
       return (paymentTx: any) =>
@@ -97,7 +126,8 @@ async function runAudit() {
           `${labelPrefix} #${releaseContext.ticketIndex + 1} -> ${releaseContext.recipientWallet}`
         );
     };
-
+    const submitWaitlistEscrow = (escrowTx: any, label: string) =>
+      submitTx(context.client, waitlistWallet, escrowTx, label);
     const scenarios: AuditScenario[] = [];
 
     let purchaseDidRejected = false;
@@ -109,11 +139,6 @@ async function runAudit() {
         recipients: [context.buyerWallet.address],
         amountRlusd: Number(PRIMARY_PURCHASE_AMOUNT),
         runtime: {
-          verifyDidProof: async (wallet) => ({
-            wallet,
-            verified: false,
-            provider: "mock-phone-proof"
-          }),
           submitPayment: submitBuyerPayment(context.buyerWallet, "Audit: Unexpected Purchase With Failed DID")
         }
       });
@@ -134,11 +159,73 @@ async function runAudit() {
       )
     );
 
+    let waitlistDidRejected = false;
+    let waitlistDidReason: string | null = null;
+    try {
+      await protocol.joinWaitlist({
+        venueId: context.vendorWallet.address,
+        wallet: waitlistWallet.address,
+        depositDrops: "2000000",
+        didAuth: undefined as any,
+        escrowDestination: escrowVaultWallet.address,
+        runtime: {
+          submitEscrow: (escrowTx) => submitWaitlistEscrow(escrowTx, "Audit: Unexpected Waitlist Escrow Without DID"),
+          persistWaitlistEntry: storeWaitlistEntry
+        }
+      });
+    } catch (error) {
+      waitlistDidRejected = true;
+      waitlistDidReason = error instanceof Error ? error.message : String(error);
+    }
+
+    scenarios.push(
+      reportScenario(
+        "waitlist join is rejected when DID verification fails",
+        "success",
+        waitlistDidRejected ? "success" : "failure",
+        "Waitlist enrollment must require a verified human-to-wallet auth artifact before escrow is created.",
+        {
+          waitlistDidReason
+        }
+      )
+    );
+
+    const waitlistJoin = await protocol.joinWaitlist({
+      venueId: context.vendorWallet.address,
+      wallet: waitlistWallet.address,
+      depositDrops: "2000000",
+      didAuth: waitlistDidAuth,
+      escrowDestination: escrowVaultWallet.address,
+      runtime: {
+        submitEscrow: (escrowTx) => submitWaitlistEscrow(escrowTx, "Audit: Waitlist Escrow Created"),
+        persistWaitlistEntry: storeWaitlistEntry
+      }
+    });
+
+    scenarios.push(
+      reportScenario(
+        "waitlist escrow is created and persisted for a verified wallet",
+        "success",
+        waitlistJoin.escrowStatus === "active" && Boolean(loadWaitlistEntry(waitlistJoin.waitlistId)?.escrowSequence)
+          ? "success"
+          : "failure",
+        "Waitlist reservations should hold a real XRPL escrow-style deposit and persist an active allocation candidate.",
+        {
+          waitlistId: waitlistJoin.waitlistId,
+          escrowHash: ((waitlistJoin.escrowResult as SubmittedTx | undefined)?.hash) ?? null
+        }
+      )
+    );
+
     const soloPurchase = await protocol.buyGiftTickets({
       venueId: context.vendorWallet.address,
       payerWallet: context.buyerWallet.address,
       recipients: [context.buyerWallet.address],
       amountRlusd: Number(PRIMARY_PURCHASE_AMOUNT),
+      payerDidAuth: buyerDidAuth,
+      recipientDidAuth: {
+        [context.buyerWallet.address]: buyerDidAuth
+      },
       runtime: {
         xrplClient: context.client,
         submitPayment: submitBuyerPayment(context.buyerWallet, "Audit: Solo Buyer Pays Vendor"),
@@ -163,11 +250,33 @@ async function runAudit() {
       )
     );
 
+    const soloTicketId = `${(soloPurchase.paymentResult as SubmittedTx | undefined)?.hash}:${context.buyerWallet.address}:0`;
+    storePendingClaim({
+      claimId: soloTicketId,
+      paymentTxHash: (soloPurchase.paymentResult as SubmittedTx | undefined)?.hash ?? "",
+      buyerAddress: context.buyerWallet.address,
+      recipientWallet: context.buyerWallet.address,
+      vendorAddress: context.vendorWallet.address,
+      issuanceId: context.issuanceId,
+      ticketIndex: 0,
+      amountRlusd: PRIMARY_PURCHASE_AMOUNT,
+      currency: "USD",
+      issuerAddress: context.issuerWallet.address,
+      status: "claimed",
+      createdAt: new Date().toISOString(),
+      claimedAt: new Date().toISOString(),
+      releasedTxHash: ((soloPurchase.deliveredRecipients[0]?.releaseResult as SubmittedTx | undefined)?.hash) ?? undefined
+    });
+
     const groupPurchase = await protocol.buyGiftTickets({
       venueId: context.vendorWallet.address,
       payerWallet: context.secondaryWallet.address,
       recipients: [context.secondaryWallet.address, candidateWallet.address],
       amountRlusd: Number(PRIMARY_PURCHASE_AMOUNT) * 2,
+      payerDidAuth: secondaryDidAuth,
+      recipientDidAuth: {
+        [context.secondaryWallet.address]: secondaryDidAuth
+      },
       runtime: {
         xrplClient: context.client,
         submitPayment: submitBuyerPayment(context.secondaryWallet, "Audit: Group Buyer Pays Vendor"),
@@ -187,7 +296,7 @@ async function runAudit() {
       reportScenario(
         "group purchase delivers authorized recipients and queues the rest",
         "success",
-        deliveredSecondary && pendingCandidate?.status === "pending_authorization" && groupPurchase.failedRecipients.length === 0
+        deliveredSecondary && pendingCandidate?.status === "pending_did_verification" && groupPurchase.failedRecipients.length === 0
           ? "success"
           : "failure",
         "The buyer can pay for multiple recipients at once; authorized recipients receive tickets immediately and unauthorized recipients stay pending.",
@@ -221,6 +330,36 @@ async function runAudit() {
       )
     );
 
+    const returnedSolo = await protocol.returnTicket({
+      venueId: context.vendorWallet.address,
+      wallet: context.buyerWallet.address,
+      ticketId: soloTicketId,
+      didAuth: buyerDidAuth,
+      runtime: {
+        loadClaimRecord: loadPendingClaim,
+        loadNextWaitlistEntry: getNextActiveWaitlistEntry
+      }
+    });
+
+    scenarios.push(
+      reportScenario(
+        "return endpoint builds a native all-or-nothing batch plan",
+        "success",
+        returnedSolo.returnStatus === "planned" &&
+          returnedSolo.batchPlan.batchMode === "ALL_OR_NOTHING" &&
+          returnedSolo.batchPlan.transactions.some((item) => item.role === "ticket_return") &&
+          returnedSolo.batchPlan.transactions.some((item) => item.role === "refund") &&
+          returnedSolo.batchPlan.transactions.some((item) => item.role === "waitlist_escrow_finish")
+          ? "success"
+          : "failure",
+        "On XRPL Devnet today, the SDK should still build the exact native Batch contract for returns even when the ledger cannot execute Batch yet.",
+        {
+          batchMode: returnedSolo.batchPlan.batchMode,
+          roles: returnedSolo.batchPlan.transactions.map((item) => item.role)
+        }
+      )
+    );
+
     let claimDidRejected = false;
     let claimDidReason: string | null = null;
     try {
@@ -230,11 +369,6 @@ async function runAudit() {
         ticketId: pendingCandidate.pendingClaimId,
         runtime: {
           xrplClient: context.client,
-          verifyDidProof: async (wallet) => ({
-            wallet,
-            verified: false,
-            provider: "mock-phone-proof"
-          }),
           loadPendingClaim,
           submitAuthorization: (authorizeTx) =>
             submitTx(context.client, candidateWallet, authorizeTx, "Audit: Unexpected Claim Authorization With Failed DID"),
@@ -270,6 +404,7 @@ async function runAudit() {
       venueId: context.vendorWallet.address,
       wallet: candidateWallet.address,
       ticketId: pendingCandidate.pendingClaimId,
+      didAuth: candidateDidAuth,
       runtime: {
         xrplClient: context.client,
         loadPendingClaim,
@@ -345,7 +480,7 @@ async function runAudit() {
     const qrResult = await protocol.generateTicketQr({
       ticketId: pendingCandidate.pendingClaimId,
       wallet: candidateWallet.address,
-      didToken: `${candidateWallet.address}:mock-phone-proof`,
+      didAuth: candidateDidAuth,
       nonce: "audit-redeem-nonce-001",
       issuedAt: new Date("2026-04-18T12:00:00.000Z"),
       ttlMs: 90_000
@@ -362,11 +497,6 @@ async function runAudit() {
         runtime: {
           loadPendingClaim,
           updateClaimRecord,
-          verifyDidProof: async (wallet) => ({
-            wallet,
-            verified: false,
-            provider: "mock-phone-proof"
-          }),
           now: () => new Date("2026-04-18T12:00:20.000Z")
         }
       });
@@ -393,10 +523,10 @@ async function runAudit() {
       wallet: candidateWallet.address,
       venueId: context.vendorWallet.address,
       qrCodeText: qrResult.qrCodeText,
+      didAuth: candidateDidAuth,
       runtime: {
         loadPendingClaim,
         updateClaimRecord,
-        verifyDidProof: (wallet) => protocol.verifyWallet(wallet),
         now: () => new Date("2026-04-18T12:00:30.000Z")
       }
     });
@@ -423,7 +553,7 @@ async function runAudit() {
       const tamperedQr = await protocol.generateTicketQr({
         ticketId: "tampered-demo-ticket",
         wallet: candidateWallet.address,
-        didToken: `${candidateWallet.address}:mock-phone-proof`,
+        didAuth: candidateDidAuth,
         nonce: "audit-tampered-nonce-001",
         issuedAt: new Date("2026-04-18T12:00:00.000Z"),
         ttlMs: 90_000
@@ -464,10 +594,10 @@ async function runAudit() {
         wallet: candidateWallet.address,
         venueId: context.vendorWallet.address,
         qrCodeText: qrResult.qrCodeText,
+        didAuth: candidateDidAuth,
         runtime: {
           loadPendingClaim,
           updateClaimRecord,
-          verifyDidProof: (wallet) => protocol.verifyWallet(wallet),
           now: () => new Date("2026-04-18T12:00:40.000Z")
         }
       });
@@ -495,7 +625,7 @@ async function runAudit() {
       const expiredQr = await protocol.generateTicketQr({
         ticketId: "expired-demo-ticket",
         wallet: candidateWallet.address,
-        didToken: `${candidateWallet.address}:mock-phone-proof`,
+        didAuth: candidateDidAuth,
         nonce: "audit-expired-nonce-001",
         issuedAt: new Date("2026-04-18T12:00:00.000Z"),
         ttlMs: 30_000
@@ -533,7 +663,7 @@ async function runAudit() {
       const venueMismatchQr = await protocol.generateTicketQr({
         ticketId: "venue-mismatch-demo-ticket",
         wallet: candidateWallet.address,
-        didToken: `${candidateWallet.address}:mock-phone-proof`,
+        didAuth: candidateDidAuth,
         nonce: "audit-venue-mismatch-001",
         issuedAt: new Date("2026-04-18T12:00:00.000Z"),
         ttlMs: 90_000

@@ -11,6 +11,8 @@ This document defines the current SDK contract for ticket redemption QR codes.
 5. The SDK validates the QR payload, validates DID, checks the ticket record, and marks the ticket `redeemed`.
 6. Any second scan of the same claimed ticket must fail.
 
+`generateTicketQr(...)` and `redeemTicket(...)` both require the wallet's DID auth artifact.
+
 ## Ticket Lifecycle
 
 The SDK-managed lifecycle now uses these states:
@@ -34,7 +36,7 @@ The QR code text is a JSON string with this schema:
   "venueId": "r...",
   "issuanceId": "0013...",
   "didProvider": "mock-phone-proof",
-  "didToken": "wallet-or-wallet-bound-proof",
+  "didToken": "wallet-auth-artifact-token",
   "nonce": "hex-string",
   "issuedAt": "2026-04-18T12:00:00.000Z",
   "expiresAt": "2026-04-18T12:01:30.000Z",
@@ -61,6 +63,7 @@ The scanner must recompute this hash and reject the QR if it does not match.
 - `venueId` does not match the scanning venue
 - `qrHash` does not match the payload contents
 - `expiresAt` is in the past
+- the provided DID auth artifact does not match `didProvider` and `didToken`
 - the ticket record is not in `claimed`
 - DID verification fails
 - the ticket has already been redeemed

@@ -27,8 +27,64 @@ import {
   type RedeemTicketRuntime,
   type TicketQrPayload
 } from "./methods/redeemTicket.js";
-import { returnTicket, type ReturnTicketInput } from "./methods/returnTicket.js";
-import { verifyDid } from "./oracle/mockDidVerifier.js";
+import {
+  joinWaitlist,
+  type JoinWaitlistInput,
+  type JoinWaitlistResult,
+  type JoinWaitlistRuntime,
+  type WaitlistEntryRecord
+} from "./methods/joinWaitlist.js";
+import {
+  returnTicket,
+  type ReturnTicketBatchPlan,
+  type ReturnTicketInput,
+  type ReturnTicketResult,
+  type ReturnTicketRuntime
+} from "./methods/returnTicket.js";
+import {
+  deletePermissionedDomain,
+  setPermissionedDomain,
+  type DeletePermissionedDomainInput,
+  type PermissionedDomainCredential,
+  type PermissionedDomainResult,
+  type PermissionedDomainRuntime,
+  type SetPermissionedDomainInput
+} from "./methods/permissionedDomain.js";
+import {
+  authenticateWallet,
+  mockDidAuthProvider,
+  verifyDid,
+  type AuthenticateWalletInput,
+  type DidAuthProvider,
+  type DidVerificationResult,
+  type WalletDidAuth
+} from "./oracle/mockDidVerifier.js";
+import {
+  buildCredentialAcceptTx,
+  buildCredentialCreateTx,
+  createCredentialAuthProvider,
+  provisionCredentialAuth,
+  verifyCredentialWallet,
+  type CredentialAuthProviderConfig,
+  type CredentialProvisionResult
+} from "./oracle/credentialAuthProvider.js";
+export {
+  authenticateWallet,
+  mockDidAuthProvider,
+  type AuthenticateWalletInput,
+  type DidAuthProvider,
+  type DidVerificationResult,
+  type WalletDidAuth
+} from "./oracle/mockDidVerifier.js";
+export {
+  buildCredentialAcceptTx,
+  buildCredentialCreateTx,
+  createCredentialAuthProvider,
+  provisionCredentialAuth,
+  verifyCredentialWallet,
+  type CredentialAuthProviderConfig,
+  type CredentialProvisionResult
+} from "./oracle/credentialAuthProvider.js";
 export {
   assertPrimaryPurchasePayment,
   getDeliveredIssuedAmount,
@@ -60,20 +116,42 @@ export {
   type RedeemTicketRuntime,
   type TicketQrPayload
 } from "./methods/redeemTicket.js";
+export {
+  type JoinWaitlistInput,
+  type JoinWaitlistResult,
+  type JoinWaitlistRuntime,
+  type WaitlistEntryRecord
+} from "./methods/joinWaitlist.js";
+export {
+  type ReturnTicketBatchPlan,
+  type ReturnTicketInput,
+  type ReturnTicketResult,
+  type ReturnTicketRuntime
+} from "./methods/returnTicket.js";
+export {
+  type DeletePermissionedDomainInput,
+  type PermissionedDomainCredential,
+  type PermissionedDomainResult,
+  type PermissionedDomainRuntime,
+  type SetPermissionedDomainInput
+} from "./methods/permissionedDomain.js";
 
 export class Protocol {
   public readonly venueId: string;
   public readonly rlusdIssuer: string;
   public readonly mptAssetId: string;
+  public readonly didAuthProvider: DidAuthProvider;
 
   constructor(
     venueId: string,
     rlusdIssuer: string = "rHKhEQp8kK9x3zPqXYx5E9LgTHTQyBhhzE", // Mock/Template issuer
-    mptAssetId: string = ""
+    mptAssetId: string = "",
+    didAuthProvider: DidAuthProvider = mockDidAuthProvider
   ) {
     this.venueId = venueId;
     this.rlusdIssuer = rlusdIssuer;
     this.mptAssetId = mptAssetId;
+    this.didAuthProvider = didAuthProvider;
   }
 
   createClient(url?: string) {
@@ -81,7 +159,17 @@ export class Protocol {
   }
 
   async buyGiftTickets(input: BuyGroupTicketInput): Promise<BuyGroupTicketResult> {
-    return buyGroupTicket(input, this.rlusdIssuer, this.mptAssetId);
+    return buyGroupTicket(
+      {
+        ...input,
+        runtime: {
+          ...input.runtime,
+          authProvider: input.runtime?.authProvider ?? this.didAuthProvider
+        }
+      },
+      this.rlusdIssuer,
+      this.mptAssetId
+    );
   }
 
   verifyGiftPurchase(plan: BuyGroupTicketPlan, paymentTxResult: unknown): VerifiedGroupTicketPurchase {
@@ -89,7 +177,16 @@ export class Protocol {
   }
 
   async claimTicket(input: ClaimTicketInput): Promise<ClaimTicketResult> {
-    return claimTicket(input, this.mptAssetId);
+    return claimTicket(
+      {
+        ...input,
+        runtime: {
+          ...input.runtime,
+          authProvider: input.runtime?.authProvider ?? this.didAuthProvider
+        }
+      },
+      this.mptAssetId
+    );
   }
 
   async generateTicketQr(input: Omit<GenerateTicketQrInput, "issuanceId" | "venueId">): Promise<GenerateTicketQrResult> {
@@ -101,14 +198,66 @@ export class Protocol {
   }
 
   async redeemTicket(input: RedeemTicketInput): Promise<RedeemTicketResult> {
-    return redeemTicket(input);
+    return redeemTicket({
+      ...input,
+      runtime: {
+        ...input.runtime,
+        authProvider: input.runtime?.authProvider ?? this.didAuthProvider
+      }
+    });
   }
 
-  async returnTicket(input: ReturnTicketInput) {
-    return returnTicket(input, this.mptAssetId);
+  async joinWaitlist(input: JoinWaitlistInput): Promise<JoinWaitlistResult> {
+    return joinWaitlist({
+      ...input,
+      runtime: {
+        ...input.runtime,
+        authProvider: input.runtime?.authProvider ?? this.didAuthProvider
+      }
+    });
   }
 
-  async verifyWallet(wallet: string) {
-    return verifyDid(wallet);
+  async returnTicket(input: ReturnTicketInput): Promise<ReturnTicketResult> {
+    return returnTicket(
+      {
+        ...input,
+        runtime: {
+          ...input.runtime,
+          authProvider: input.runtime?.authProvider ?? this.didAuthProvider
+        }
+      },
+      this.mptAssetId
+    );
+  }
+
+  async setPermissionedDomain(input: SetPermissionedDomainInput): Promise<PermissionedDomainResult> {
+    return setPermissionedDomain({
+      ...input,
+      runtime: {
+        ...input.runtime,
+        authProvider: input.runtime?.authProvider ?? this.didAuthProvider
+      }
+    });
+  }
+
+  async deletePermissionedDomain(input: DeletePermissionedDomainInput): Promise<PermissionedDomainResult> {
+    return deletePermissionedDomain({
+      ...input,
+      runtime: {
+        ...input.runtime,
+        authProvider: input.runtime?.authProvider ?? this.didAuthProvider
+      }
+    });
+  }
+
+  async authenticateWallet(input: string | AuthenticateWalletInput): Promise<WalletDidAuth> {
+    return this.didAuthProvider.authenticateWallet(typeof input === "string" ? { wallet: input } : input);
+  }
+
+  async verifyWallet(wallet: string, didAuth?: WalletDidAuth): Promise<DidVerificationResult> {
+    return this.didAuthProvider.verifyWallet({
+      wallet,
+      artifact: didAuth
+    });
   }
 }

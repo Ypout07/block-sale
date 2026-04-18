@@ -1,5 +1,9 @@
 import type { Payment } from "xrpl";
-import { verifyDid } from "../oracle/mockDidVerifier.js";
+import {
+  mockDidAuthProvider,
+  type DidAuthProvider,
+  type WalletDidAuth
+} from "../oracle/mockDidVerifier.js";
 
 export type PendingClaimRecord = {
   claimId: string;
@@ -10,19 +14,25 @@ export type PendingClaimRecord = {
   issuanceId: string;
   ticketIndex: number;
   amountRlusd: string;
-  status: "pending_authorization" | "pending_did_verification" | "claimed" | "redeemed";
+  currency: string;
+  issuerAddress: string;
+  status: "pending_authorization" | "pending_did_verification" | "claimed" | "redeemed" | "returned";
   createdAt: string;
   claimedAt?: string;
   releasedTxHash?: string;
   redeemedAt?: string;
   redemptionHash?: string;
+  returnedAt?: string;
+  returnBatchHash?: string;
+  refundTxHash?: string;
+  waitlistAllocationId?: string;
 };
 
 export type ClaimTicketRuntime = {
   xrplClient?: {
     request: (request: Record<string, unknown>) => Promise<{ result: unknown }>;
   };
-  verifyDidProof?: (wallet: string) => Promise<{ wallet: string; verified: boolean; provider: string }>;
+  authProvider?: DidAuthProvider;
   loadPendingClaim?: (claimId: string) => Promise<PendingClaimRecord | null> | PendingClaimRecord | null;
   submitAuthorization?: (authorizeTx: Record<string, unknown>) => Promise<unknown>;
   submitTicketRelease?: (releaseTx: Payment, pendingClaim: PendingClaimRecord) => Promise<unknown>;
@@ -36,6 +46,7 @@ export type ClaimTicketInput = {
   venueId: string;
   wallet: string;
   ticketId: string;
+  didAuth?: WalletDidAuth;
   runtime?: ClaimTicketRuntime;
 };
 
@@ -106,11 +117,15 @@ async function isRecipientAuthorized(
 
 async function requireDidVerification(
   wallet: string,
-  verifyDidProof?: (wallet: string) => Promise<{ wallet: string; verified: boolean; provider: string }>
+  artifact: WalletDidAuth | undefined,
+  authProvider?: DidAuthProvider
 ) {
-  const result = verifyDidProof ? await verifyDidProof(wallet) : await verifyDid(wallet);
+  const result = await (authProvider ?? mockDidAuthProvider).verifyWallet({
+    wallet,
+    artifact
+  });
   if (!result.verified) {
-    throw new Error(`DID verification failed for wallet ${wallet}.`);
+    throw new Error(result.reason ?? `DID verification failed for wallet ${wallet}.`);
   }
   return result;
 }
@@ -131,7 +146,7 @@ export async function claimTicket(input: ClaimTicketInput, mptAssetId: string): 
   };
 
   if (!runtime?.loadPendingClaim) {
-    await requireDidVerification(input.wallet, runtime?.verifyDidProof);
+    await requireDidVerification(input.wallet, input.didAuth, runtime?.authProvider);
     return {
       ticketId: input.ticketId,
       claimStatus: "planned",
@@ -151,7 +166,7 @@ export async function claimTicket(input: ClaimTicketInput, mptAssetId: string): 
     throw new Error(`Pending claim ${input.ticketId} is already ${pendingClaim.status}.`);
   }
 
-  await requireDidVerification(input.wallet, runtime?.verifyDidProof);
+  await requireDidVerification(input.wallet, input.didAuth, runtime?.authProvider);
 
   let authorizationResult: unknown;
   if (runtime.xrplClient) {

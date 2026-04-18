@@ -14,6 +14,9 @@
     "setup:devnet": "npm run setup:devnet --workspace @xrpl-ticketing/ticket-sdk",
     "purchase:primary": "npm run purchase:primary --workspace @xrpl-ticketing/ticket-sdk",
     "audit:primary-policy": "npm run audit:primary-policy --workspace @xrpl-ticketing/ticket-sdk",
-    "audit:primary-hook": "npm run audit:primary-policy --workspace @xrpl-ticketing/ticket-sdk"
+    "audit:primary-hook": "npm run audit:primary-policy --workspace @xrpl-ticketing/ticket-sdk",
+    "audit:credential-auth": "npm run audit:credential-auth --workspace @xrpl-ticketing/ticket-sdk",
+    "audit:permissioned-domain": "npm run audit:permissioned-domain --workspace @xrpl-ticketing/ticket-sdk",
+    "audit:native-batch": "npm run audit:native-batch --workspace @xrpl-ticketing/ticket-sdk"
   }
 }

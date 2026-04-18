@@ -1,4 +1,8 @@
-import { verifyDid } from "../oracle/mockDidVerifier.js";
+import {
+  mockDidAuthProvider,
+  type DidAuthProvider,
+  type WalletDidAuth
+} from "../oracle/mockDidVerifier.js";
 import type { PendingClaimRecord } from "./claimTicket.js";
 
 export type TicketQrPayload = {
@@ -21,6 +25,7 @@ export type GenerateTicketQrInput = {
   wallet: string;
   venueId: string;
   issuanceId: string;
+  didAuth?: WalletDidAuth;
   didToken?: string;
   nonce?: string;
   issuedAt?: Date;
@@ -38,7 +43,7 @@ export type RedeemTicketRuntime = {
     claimId: string,
     updates: { status: "redeemed"; redeemedAt: string; redemptionHash: string }
   ) => Promise<void> | void;
-  verifyDidProof?: (wallet: string) => Promise<{ wallet: string; verified: boolean; provider: string }>;
+  authProvider?: DidAuthProvider;
   now?: () => Date;
 };
 
@@ -47,6 +52,7 @@ export type RedeemTicketInput = {
   wallet: string;
   venueId: string;
   qrCodeText: string;
+  didAuth?: WalletDidAuth;
   runtime?: RedeemTicketRuntime;
 };
 
@@ -110,11 +116,19 @@ function randomNonce() {
 }
 
 export async function generateTicketQr(input: GenerateTicketQrInput): Promise<GenerateTicketQrResult> {
+  if (!input.didAuth) {
+    throw new Error("generateTicketQr requires a DID authentication artifact.");
+  }
+
+  if (input.didAuth.wallet !== input.wallet) {
+    throw new Error("DID authentication artifact does not match the QR wallet.");
+  }
+
   const issuedAt = input.issuedAt ?? new Date();
   const ttlMs = input.ttlMs ?? 60_000;
   const expiresAt = new Date(issuedAt.getTime() + ttlMs);
-  const didProvider = "mock-phone-proof";
-  const didToken = input.didToken ?? input.wallet;
+  const didProvider = input.didAuth.provider;
+  const didToken = input.didAuth.authToken;
   const nonce = input.nonce ?? randomNonce();
 
   const payloadWithoutHash = {
@@ -228,12 +242,21 @@ export async function redeemTicket(input: RedeemTicketInput): Promise<RedeemTick
     throw new Error(`Ticket ${input.ticketId} is ${claimRecord.status} and cannot be redeemed.`);
   }
 
-  const didVerification = runtime?.verifyDidProof
-    ? await runtime.verifyDidProof(input.wallet)
-    : await verifyDid(input.wallet);
+  const didVerification = await (runtime?.authProvider ?? mockDidAuthProvider).verifyWallet({
+    wallet: input.wallet,
+    artifact: input.didAuth
+  });
 
   if (!didVerification.verified) {
-    throw new Error("DID verification failed for the redeeming wallet.");
+    throw new Error(didVerification.reason ?? "DID verification failed for the redeeming wallet.");
+  }
+
+  if (!input.didAuth) {
+    throw new Error("redeemTicket requires a DID authentication artifact.");
+  }
+
+  if (input.didAuth.provider !== qrPayload.didProvider || input.didAuth.authToken !== qrPayload.didToken) {
+    throw new Error("DID authentication artifact does not match the QR payload.");
   }
 
   await runtime?.updateClaimRecord?.(input.ticketId, {
