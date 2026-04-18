@@ -13,19 +13,7 @@ To facilitate buying for friends without opening P2P transfer loopholes, the pro
 
 **Pre-requisite:** Every participant (the buyer and all friends) must have an XRPL wallet with a verified Decentralized Identifier (DID). The DID proves "humanness" (e.g., via a Zero-Knowledge Proof of a unique phone number) without doxing personal data.
 
-When purchasing, the buyer declares the destination wallets upfront. The protocol offers two distinct flows:
-
-### Flow A: The Gift (Single Payer, Multi-Recipient)
-* **The Intent:** Alice wants to buy 3 tickets for herself, Bob, and Charlie, and she is paying for all of them.
-* **The Execution:** Alice initiates a transaction for 150 RLUSD, specifying the destination DID wallets (Alice, Bob, Charlie).
-* **The Protocol Logic:** The Hook on the Venue Pool intercepts the transaction. It verifies all three DIDs. Upon success, it mints 1 MPT directly to Alice, 1 to Bob, and 1 to Charlie.
-* **State Rules:** Because the MPTs are instantly distributed, Alice *cannot* return Bob's or Charlie's tickets. If Bob cannot attend, Bob must initiate the return from his own wallet back to the Venue Pool.
-
-### Flow B: The Split (Multi-Payer, Multi-Recipient)
-* **The Intent:** Alice, Bob, and Charlie want to go together, but each wants to pay their own 50 RLUSD share.
-* **The Execution:** Alice configures the group order in the protocol app. The protocol constructs a **Multi-Signature (Multi-Sig)** transaction.
-* **The Protocol Logic:** The transaction requires cryptographic signatures from Alice, Bob, and Charlie, authorizing 50 RLUSD from each of their wallets. Once all three sign, the transaction is submitted to the ledger.
-* **State Rules:** The Hook verifies the total 150 RLUSD and the three DIDs. It then atomically pulls the funds from each wallet and mints the MPTs to their respective wallets. No one fronts the money, and no IOUs are needed.
+When purchasing, the buyer declares the destination wallets upfront. This destination is the ID of the account. Say Alice was purchasing for her and two friends. She will pay 150 RLUSD for these, and she would be given one minted MPT. The other two would be sent to the other accounts. The MPT will be added to the account when the person receiving it puts in their account password and accepts it. 
 
 ## 4. Product Flow: Waitlists & Returns
 **Scenario:** A 5,000-seat stadium concert sells out.

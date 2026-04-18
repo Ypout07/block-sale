@@ -1,0 +1,11 @@
+{
+  "TransactionType": "Invoke",
+  "Account": "rEXAMPLEBUYER",
+  "Destination": "rEXAMPLEVENUEPOOL",
+  "HookParameters": [
+    {
+      "HookParameterName": "operation",
+      "HookParameterValue": "buy_group"
+    }
+  ]
+}

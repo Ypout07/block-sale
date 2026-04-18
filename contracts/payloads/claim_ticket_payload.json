@@ -1,0 +1,11 @@
+{
+  "TransactionType": "Invoke",
+  "Account": "rEXAMPLEHOLDER",
+  "Destination": "rEXAMPLEVENUEPOOL",
+  "HookParameters": [
+    {
+      "HookParameterName": "operation",
+      "HookParameterValue": "claim_ticket"
+    }
+  ]
+}
