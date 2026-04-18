@@ -1,0 +1,133 @@
+export type Event = {
+  id: string;
+  name: string;
+  subtitle: string;
+  label: string;
+  trending: string;
+  description: string;
+  date: string;
+  venue: string;
+  price: number;
+  photo: string;
+  tint: string; // rgb values, e.g. "91,53,213"
+};
+
+export const ALL_EVENTS: Event[] = [
+  {
+    id: "1",
+    name: "The 1975",
+    subtitle: "Being Funny in a Foreign Language Tour",
+    label: "FEATURED EVENT",
+    trending: "NOW ON SALE",
+    description: "Experience the critically acclaimed tour live. Limited tickets available.",
+    date: "Sat, May 23 · 7:00 PM",
+    venue: "Sprint Center · Kansas City, MO",
+    price: 85,
+    photo: "https://upload.wikimedia.org/wikipedia/commons/5/5b/Matthew_Matty_Healy_The_1975_%28253662053%29.jpeg",
+    tint: "74,16,128",
+  },
+  {
+    id: "2",
+    name: "Coldplay",
+    subtitle: "Music of the Spheres",
+    label: "UPCOMING EVENTS",
+    trending: "SELLING FAST",
+    description: "A once-in-a-lifetime immersive live experience under the stars.",
+    date: "Sun, Jun 7 · 7:30 PM",
+    venue: "Arrowhead Stadium · Kansas City, MO",
+    price: 120,
+    photo: "https://upload.wikimedia.org/wikipedia/commons/0/06/Chris_Martin%2C_Coldplay%2C_Main_Square_Festival%2C_Arras_2011.jpg",
+    tint: "0,80,180",
+  },
+  {
+    id: "3",
+    name: "Taylor Swift",
+    subtitle: "The Eras Tour",
+    label: "UPCOMING EVENTS",
+    trending: "LIMITED TICKETS",
+    description: "A journey through every era — three hours of pure magic.",
+    date: "Sat, Jun 14 · 6:00 PM",
+    venue: "Kauffman Center · Kansas City, MO",
+    price: 200,
+    photo: "https://upload.wikimedia.org/wikipedia/commons/7/71/Taylor_Swift_The_Eras_Tour_1989_Era_Set_%2853109542801%29_%28cropped%29.jpg",
+    tint: "160,20,80",
+  },
+  {
+    id: "4",
+    name: "Bad Bunny",
+    subtitle: "Most Wanted Tour",
+    label: "UPCOMING EVENTS",
+    trending: "ON SALE NOW",
+    description: "The biggest Latin artist in the world comes to the City.",
+    date: "Wed, Jul 2 · 8:00 PM",
+    venue: "Sprint Center · Kansas City, MO",
+    price: 95,
+    photo: "https://upload.wikimedia.org/wikipedia/commons/b/b1/Bad_Bunny_2019_by_Glenn_Francis_%28cropped%29.jpg",
+    tint: "160,80,0",
+  },
+  {
+    id: "5",
+    name: "Kendrick Lamar",
+    subtitle: "GNX World Tour",
+    label: "UPCOMING EVENTS",
+    trending: "HOT",
+    description: "Pulitzer Prize winner. Grammy champion. Now live on the GNX tour.",
+    date: "Sat, Jul 19 · 8:00 PM",
+    venue: "Sprint Center · Kansas City, MO",
+    price: 110,
+    photo: "https://upload.wikimedia.org/wikipedia/commons/3/32/Pulitzer2018-portraits-kendrick-lamar.jpg",
+    tint: "10,80,40",
+  },
+  {
+    id: "6",
+    name: "Olivia Rodrigo",
+    subtitle: "GUTS Tour",
+    label: "JUST LISTED",
+    trending: "JUST LISTED",
+    description: "The raw, electric GUTS album performed live for the first time.",
+    date: "Sun, Aug 3 · 7:00 PM",
+    venue: "Municipal Auditorium · Kansas City, MO",
+    price: 75,
+    photo: "https://upload.wikimedia.org/wikipedia/commons/4/42/Olivia_Rodrigo_performs_%27Get_Him_Back%27_live.jpg",
+    tint: "100,10,160",
+  },
+  {
+    id: "7",
+    name: "Sabrina Carpenter",
+    subtitle: "Short n Sweet Tour",
+    label: "JUST LISTED",
+    trending: "JUST LISTED",
+    description: "The pop sensation brings her debut headlining tour to KC.",
+    date: "Fri, Aug 22 · 7:30 PM",
+    venue: "Starlight Theatre · Kansas City, MO",
+    price: 80,
+    photo: "https://upload.wikimedia.org/wikipedia/commons/2/2d/Sabrina_Carpenter%2C_The_Eras_Tour%2C_Singapore_National_Stadium%2C_9_March_2024.jpeg",
+    tint: "180,40,80",
+  },
+  {
+    id: "8",
+    name: "SZA",
+    subtitle: "LANA Tour",
+    label: "JUST LISTED",
+    trending: "JUST LISTED",
+    description: "Neo-soul's defining voice in an intimate arena setting.",
+    date: "Fri, Sep 5 · 8:00 PM",
+    venue: "Sprint Center · Kansas City, MO",
+    price: 90,
+    photo: "https://upload.wikimedia.org/wikipedia/commons/7/7f/SZA_-_All_the_Stars_%28SOS_Tour%2C_Toronto%29.png",
+    tint: "0,100,100",
+  },
+  {
+    id: "9",
+    name: "Chappell Roan",
+    subtitle: "Midwest Princess Tour",
+    label: "JUST LISTED",
+    trending: "JUST LISTED",
+    description: "The midwest's own princess returns home for a special night.",
+    date: "Thu, Sep 18 · 7:00 PM",
+    venue: "Uptown Theater · Kansas City, MO",
+    price: 65,
+    photo: "https://upload.wikimedia.org/wikipedia/commons/a/a1/Chappell_Roan_%40_Hollywood_Palladium_11_18_2022_%2853885660052%29.jpg",
+    tint: "180,10,100",
+  },
+];

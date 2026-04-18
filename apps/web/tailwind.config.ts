@@ -5,15 +5,23 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        slateNight: "#1f2937",
-        slateMist: "#94a3b8",
-        creme: "#f8f1e5",
-        ember: "#c96f3b",
-        mint: "#72bda3"
-      }
-    }
+        system: "#F2F2F7",
+        surface: "#FFFFFF",
+        muted: "#8E8E93",
+        border: "#C6C6C8",
+        accent: "#5AC8FA",
+      },
+      borderRadius: {
+        "2xl": "1rem",
+        "3xl": "1.25rem",
+        "4xl": "1.5rem",
+      },
+      boxShadow: {
+        card: "0 2px 16px rgba(0,0,0,0.10)",
+      },
+    },
   },
-  plugins: []
+  plugins: [],
 };
 
 export default config;
