@@ -4,8 +4,12 @@
   "Destination": "rEXAMPLEVENUEPOOL",
   "HookParameters": [
     {
-      "HookParameterName": "operation",
+      "HookParameterName": "op",
       "HookParameterValue": "claim_ticket"
+    },
+    {
+      "HookParameterName": "ticket_id",
+      "HookParameterValue": "demo-ticket-001"
     }
   ]
 }

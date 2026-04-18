@@ -4,8 +4,20 @@
   "Destination": "rEXAMPLEVENUEPOOL",
   "HookParameters": [
     {
-      "HookParameterName": "operation",
+      "HookParameterName": "op",
       "HookParameterValue": "buy_group"
+    },
+    {
+      "HookParameterName": "recipient",
+      "HookParameterValue": "rEXAMPLERECIPIENT"
+    },
+    {
+      "HookParameterName": "ticket_id",
+      "HookParameterValue": "demo-ticket-001"
+    },
+    {
+      "HookParameterName": "proof",
+      "HookParameterValue": "deadbeefcafebabe"
     }
   ]
 }

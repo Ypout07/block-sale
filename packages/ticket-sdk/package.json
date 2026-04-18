@@ -6,7 +6,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "setup:devnet": "node --experimental-strip-types ./scripts/setup_devnet.ts"
   },
   "dependencies": {
     "xrpl": "^4.2.0"

@@ -100,9 +100,9 @@ No real hook implementation or build toolchain has been added yet.
 ## Suggested Near-Term Work
 
 1. Define the minimal hook behaviors required for the demo.
-2. Specify exact hook parameter formats and expected payload schemas for buy and claim flows.
+2. Specify exact hook parameter formats and expected payload schemas for the anti-transfer path first.
 3. Implement the transfer bouncer first, since closed-loop enforcement is central to the pitch.
-4. Implement purchase / claim state handling second, using `state_set()` for claimable assignments.
+4. Implement purchase / claim state handling second, using `state_set()` for queued claimable assignments.
 5. Mirror the source in the XRPL Hooks Builder workflow and keep local files in sync with the deployed demo version.
 6. Add local fixtures or reproducible payloads for each happy-path and rejection-path scenario.
 7. Add deployment notes or scripts that document the Hooks Builder to Devnet path.
@@ -132,5 +132,4 @@ Agents working here should think in terms of protocol invariants and rejection c
 
 ## Open Questions To Resolve With The Team
 
-- What data needs to live in HookState versus being inferred from transaction parameters?
 - Which invariants are absolutely required for the first demo milestone, and which are stretch goals?

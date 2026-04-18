@@ -1,4 +1,6 @@
-import { Client, MPTokenIssuanceCreate, MPTokenIssuanceCreateFlags, TrustSet, Payment } from 'xrpl'
+import xrpl from 'xrpl'
+
+const { Client, MPTokenIssuanceCreateFlags } = xrpl
 
 const DEVNET_URL = 'wss://s.devnet.rippletest.net:51233'
 
@@ -29,7 +31,7 @@ async function setupDevnet() {
 
     // 1. Issue the MPT (Multi-Purpose Token)
     console.log('--- Creating MPT Issuance ---')
-    const mptIssuance: MPTokenIssuanceCreate = {
+    const mptIssuance = {
       TransactionType: 'MPTokenIssuanceCreate',
       Account: VenueWallet.address,
       AssetScale: 0, // Tickets are usually whole units
@@ -54,7 +56,7 @@ async function setupDevnet() {
     
     for (const wallet of walletsToFund) {
       // Create Trustline for RLUSD
-      const trustSetTx: TrustSet = {
+      const trustSetTx = {
         TransactionType: "TrustSet",
         Account: wallet.address,
         LimitAmount: {
@@ -68,7 +70,7 @@ async function setupDevnet() {
       await client.submitAndWait(signedTrust.tx_blob);
 
       // Send RLUSD to Wallet
-      const paymentTx: Payment = {
+      const paymentTx = {
         TransactionType: "Payment",
         Account: IssuerWallet.address,
         Destination: wallet.address,

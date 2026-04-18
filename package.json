@@ -10,6 +10,7 @@
     "dev:web": "npm run dev --workspace @xrpl-ticketing/web",
     "build:web": "npm run build --workspace @xrpl-ticketing/web",
     "lint:web": "npm run lint --workspace @xrpl-ticketing/web",
-    "build:sdk": "npm run build --workspace @xrpl-ticketing/ticket-sdk"
+    "build:sdk": "npm run build --workspace @xrpl-ticketing/ticket-sdk",
+    "setup:devnet": "npm run setup:devnet --workspace @xrpl-ticketing/ticket-sdk"
   }
 }

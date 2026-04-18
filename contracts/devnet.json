@@ -1,0 +1,15 @@
+{
+  "vendorPoolAddress": "rDa3E72iujUJciri1B8djcmowVsuNDu4QT",
+  "vendorPoolSeed": "sEd77UAry5NZshnbLwf9pwU3pscTDf8",
+  "holderAddress": "rH1wbyfhqKKvybioodsh9ctZiRf8rS1hKS",
+  "holderSeed": "sEdViyntgnVLEaerZG2vthtbk5MFKQM",
+  "unauthorizedRecipientAddress": "rp8CGFHmV53xKUuUQYfQFh26LBkYN1za8Z",
+  "unauthorizedRecipientSeed": "sEd77gp3s7HHFNF34Xqv6Km9BMfpwp2",
+  "secondaryHolderAddress": "rEkTUKB9MAPH5pUuu3nJYvnjdfzmwDbSXn",
+  "secondaryHolderSeed": "sEdVJx2sPea2mB1nAhEDJ9QBy9mU67h",
+  "waitlistAddress": "rMo7wov86h9YL37VSWpjkSiRqjzEVGzqPY",
+  "waitlistSeed": "sEd7QiyDkVvqmEqyd84v6VY1VF28tut",
+  "mptIssuanceId": "FF031BF6053D760CE599A3E184770983F456DFF1536BFF581E2BE9ED77E08623",
+  "rlusdIssuer": "raRMN4SWnVd13QpFBXEvtpWwuySmRaiYr9",
+  "lastHookHash": "0000000000000000000000000000000000000000000000000000000000000000"
+}
