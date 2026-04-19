@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Client, Wallet } from "xrpl";
 import { addPendingClaim } from "@/lib/claimStore";
 import { decrementTickets } from "@/lib/eventStore";
+import { addPurchaseRecord } from "@/lib/purchaseStore";
 
 const DEVNET_URL = "wss://s.devnet.rippletest.net:51233";
 const CLIENT_OPTIONS = { connectionTimeout: 20000 };
@@ -159,12 +160,22 @@ export async function POST(req: NextRequest) {
         addPendingClaim({
           claimId,
           venueId: VENUE_ADDRESS,
+          eventId: eventId || "12",
           buyerAddress: payerWallet,
           recipientWallet,
           amountRlusd: (amountRlusd / recipients.length).toString(),
           status: "pending_authorization",
           createdAt: new Date().toISOString(),
           issuanceId: MPT_ISSUANCE_ID,
+        });
+        addPurchaseRecord({
+          purchaseId: claimId,
+          buyerWallet: payerWallet,
+          recipientWallet,
+          eventId: eventId || "12",
+          purchasedAt: new Date().toISOString(),
+          status: "pending_claim",
+          claimId,
         });
 
         pendingRecipients.push({
@@ -189,7 +200,16 @@ export async function POST(req: NextRequest) {
         });
 
         if (releaseResult.meta?.TransactionResult === "tesSUCCESS") {
-          deliveredRecipients.push({ recipientWallet, ticketIndex: i, status: "delivered" });
+          const purchaseId = `purchase_${Date.now()}_${i}`;
+          addPurchaseRecord({
+            purchaseId,
+            buyerWallet: payerWallet,
+            recipientWallet,
+            eventId: eventId || "12",
+            purchasedAt: new Date().toISOString(),
+            status: "delivered",
+          });
+          deliveredRecipients.push({ purchaseId, recipientWallet, ticketIndex: i, status: "delivered" });
         } else {
           failedRecipients.push({ recipientWallet, ticketIndex: i, status: "release_failed" });
         }

@@ -4,6 +4,7 @@ import path from 'path';
 export type PendingClaim = {
   claimId: string;
   venueId: string;
+  eventId?: string;
   buyerAddress: string;
   recipientWallet: string;
   amountRlusd: string;

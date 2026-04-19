@@ -128,7 +128,7 @@ export function BuyOverlay({ event, visible, onClose }: Props) {
         display: "flex", flexDirection: "column", justifyContent: "flex-end",
         pointerEvents: visible ? "auto" : "none"
       }}>
-        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", transition: "opacity 0.4s ease", opacity: visible ? 1 : 0 }} />
+        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", transition: "opacity 0.4s ease", opacity: visible ? 1 : 0, pointerEvents: visible ? "auto" : "none" }} />
         
         <div style={{
           position: "relative", background: "#1C1C1E", borderTopLeftRadius: 32, borderTopRightRadius: 32,
@@ -161,15 +161,16 @@ export function BuyOverlay({ event, visible, onClose }: Props) {
       display: "flex", flexDirection: "column", justifyContent: "flex-end",
       pointerEvents: visible ? "auto" : "none"
     }}>
-      <div 
+      <div
         onClick={onClose}
-        style={{ 
-          position: "absolute", inset: 0, 
-          background: "rgba(0,0,0,0.6)", 
+        style={{
+          position: "absolute", inset: 0,
+          background: "rgba(0,0,0,0.6)",
           backdropFilter: "blur(4px)",
           transition: "opacity 0.4s ease",
-          opacity: visible ? 1 : 0
-        }} 
+          opacity: visible ? 1 : 0,
+          pointerEvents: visible ? "auto" : "none"
+        }}
       />
       
       <div style={{

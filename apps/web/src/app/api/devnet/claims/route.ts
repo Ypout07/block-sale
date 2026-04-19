@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client, Wallet } from "xrpl";
 import { getPendingClaims, markClaimed } from "@/lib/claimStore";
+import { markPurchaseClaimed } from "@/lib/purchaseStore";
 
 const DEVNET_URL = "wss://s.devnet.rippletest.net:51233";
 const CLIENT_OPTIONS = { connectionTimeout: 20000 };
@@ -76,6 +77,7 @@ export async function POST(req: NextRequest) {
 
     if (releaseResult.meta?.TransactionResult === "tesSUCCESS") {
       markClaimed(claimId);
+      markPurchaseClaimed(claimId);
       return NextResponse.json({ success: true, hash: releaseResult.hash });
     } else {
       return NextResponse.json({ error: `Release failed: ${releaseResult.meta?.TransactionResult}` }, { status: 500 });

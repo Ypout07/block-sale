@@ -1,12 +1,23 @@
 [
   {
-    "claimId": "wl_claim_1776553506402",
+    "claimId": "wl_claim_1776561389250",
     "venueId": "12",
     "buyerAddress": "rDa3E72iujUJciri1B8djcmowVsuNDu4QT",
     "recipientWallet": "rp8CGFHmV53xKUuUQYfQFh26LBkYN1za8Z",
     "amountRlusd": "100",
     "status": "claimed",
-    "createdAt": "2026-04-18T23:05:06.402Z",
+    "createdAt": "2026-04-19T01:16:29.250Z",
+    "issuanceId": "0013825E8499A40F466D9E541672E5B7440444035AB3B298"
+  },
+  {
+    "claimId": "claim_1776561442080_0",
+    "venueId": "rDa3E72iujUJciri1B8djcmowVsuNDu4QT",
+    "eventId": "11",
+    "buyerAddress": "rH1wbyfhqKKvybioodsh9ctZiRf8rS1hKS",
+    "recipientWallet": "rp8CGFHmV53xKUuUQYfQFh26LBkYN1za8Z",
+    "amountRlusd": "130",
+    "status": "claimed",
+    "createdAt": "2026-04-19T01:17:22.080Z",
     "issuanceId": "0013825E8499A40F466D9E541672E5B7440444035AB3B298"
   }
 ]

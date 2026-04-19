@@ -16,14 +16,8 @@ function EventCardInner({ event, onBuy }: { event: Event; onBuy: () => void }) {
   const [liveState, setLiveState] = useState<{ remainingTickets: number, isSoldOut: boolean } | null>(null);
 
   useEffect(() => {
-    async function fetchState() {
-      const state = await getEventState(event.id);
-      if (state) setLiveState(state);
-    }
-    fetchState();
-    const interval = setInterval(fetchState, 3000);
-    return () => clearInterval(interval);
-  }, [event.id, getEventState]);
+    getEventState(event.id).then(state => { if (state) setLiveState(state); });
+  }, [event.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleWaitlist = async () => {
     if (!walletAddress) {
@@ -125,11 +119,8 @@ function EventSection({ label, events, onBuy }: { label: string; events: Event[]
   const id = `section-${label.replace(/\s+/g, '-')}`;
   return (
     <div id={id} className="mb-8 relative" style={{ scrollMarginTop: "110px" }}>
-      <div className="flex items-center justify-between px-4 mb-4">
+      <div className="px-4 mb-4">
         <h2 className="text-[20px] font-bold text-white tracking-tight">{label}</h2>
-        <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" }}>
-          {events.length} {events.length === 1 ? 'event' : 'events'}
-        </span>
       </div>
       <div
         className="flex gap-4 hide-scrollbar"
@@ -172,6 +163,7 @@ function HomePageContent() {
   const [overlayEvent, setOverlayEvent] = useState<Event | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [navForceVisible, setNavForceVisible] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -222,7 +214,10 @@ function HomePageContent() {
     setActiveTab(label);
     const el = document.getElementById(`section-${label.replace(/\s+/g, '-')}`);
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const top = el.getBoundingClientRect().top + window.scrollY - 110;
+      setNavForceVisible(true);
+      window.scrollTo({ top, behavior: "smooth" });
+      setTimeout(() => setNavForceVisible(false), 700);
     }
   };
 
@@ -283,9 +278,9 @@ function HomePageContent() {
         )}
       </div>
 
-      <SharedNavBar 
-        onWalletClick={() => setWalletModalOpen(true)} 
-        onSearchClick={handleSearchClick}
+      <SharedNavBar
+        onWalletClick={() => setWalletModalOpen(true)}
+        forceVisible={navForceVisible}
       />
 
       <BuyOverlay event={overlayEvent} visible={overlayVisible} onClose={closeBuy} />

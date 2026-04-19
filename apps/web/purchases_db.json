@@ -1,0 +1,29 @@
+[
+  {
+    "purchaseId": "purchase_1776561352506_0",
+    "buyerWallet": "rH1wbyfhqKKvybioodsh9ctZiRf8rS1hKS",
+    "recipientWallet": "rH1wbyfhqKKvybioodsh9ctZiRf8rS1hKS",
+    "eventId": "12",
+    "purchasedAt": "2026-04-19T01:15:52.506Z",
+    "status": "returned",
+    "returnedAt": "2026-04-19T01:16:29.251Z"
+  },
+  {
+    "purchaseId": "wl_claim_1776561389250",
+    "buyerWallet": "rDa3E72iujUJciri1B8djcmowVsuNDu4QT",
+    "recipientWallet": "rp8CGFHmV53xKUuUQYfQFh26LBkYN1za8Z",
+    "eventId": "12",
+    "purchasedAt": "2026-04-19T01:16:29.251Z",
+    "status": "delivered",
+    "claimId": "wl_claim_1776561389250"
+  },
+  {
+    "purchaseId": "claim_1776561442080_0",
+    "buyerWallet": "rH1wbyfhqKKvybioodsh9ctZiRf8rS1hKS",
+    "recipientWallet": "rp8CGFHmV53xKUuUQYfQFh26LBkYN1za8Z",
+    "eventId": "11",
+    "purchasedAt": "2026-04-19T01:17:22.082Z",
+    "status": "delivered",
+    "claimId": "claim_1776561442080_0"
+  }
+]

@@ -3,6 +3,7 @@ import { Client, Wallet } from "xrpl";
 import { getNextWaitlistEntry, markWaitlistAllocated } from "@/lib/waitlistStore";
 import { addPendingClaim } from "@/lib/claimStore";
 import { incrementTickets } from "@/lib/eventStore";
+import { markPurchaseReturned, addPurchaseRecord } from "@/lib/purchaseStore";
 import { ALL_EVENTS } from "@/data/events";
 
 const DEVNET_URL = "wss://s.devnet.rippletest.net:51233";
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
       const claimId = `wl_claim_${Date.now()}`;
       addPendingClaim({
         claimId,
-        venueId: waitlistKey, // Use eventId so ClaimPage shows the right event
+        venueId: waitlistKey,
         buyerAddress: VENUE_ADDRESS,
         recipientWallet: nextEntry.wallet,
         amountRlusd: refundAmount,
@@ -80,12 +81,22 @@ export async function POST(req: NextRequest) {
         createdAt: new Date().toISOString(),
         issuanceId: MPT_ISSUANCE_ID,
       });
+      addPurchaseRecord({
+        purchaseId: claimId,
+        buyerWallet: VENUE_ADDRESS,
+        recipientWallet: nextEntry.wallet,
+        eventId: waitlistKey,
+        purchasedAt: new Date().toISOString(),
+        status: "pending_claim",
+        claimId,
+      });
       markWaitlistAllocated(nextEntry.waitlistId);
     } else if (eventId) {
       // If no one is on waitlist, put ticket back into pool
       incrementTickets(eventId);
     }
 
+    markPurchaseReturned(ticketId);
     return NextResponse.json({ success: true });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

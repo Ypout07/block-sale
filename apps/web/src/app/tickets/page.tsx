@@ -487,7 +487,6 @@ function Section({
 export default function TicketsPage() {
   const { walletAddress, connectWallet, returnTicket } = useProtocol();
   const [tickets, setTickets] = useState<PurchasedTicket[]>(INITIAL_TICKETS);
-  const [chainTicketCount, setChainTicketCount] = useState<number | null>(null);
   const [chainLoading, setChainLoading] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [returning, setReturning] = useState(false);
@@ -497,41 +496,40 @@ export default function TicketsPage() {
   const [walletModalOpen, setWalletModalOpen] = useState(false);
 
   useEffect(() => {
-    if (!walletAddress) { 
-      setChainTicketCount(null); 
+    if (!walletAddress) {
       setTickets([]);
-      return; 
+      return;
     }
     setChainLoading(true);
-    fetch(`/api/devnet/tickets?wallet=${walletAddress}`)
+    fetch(`/api/devnet/purchases?wallet=${walletAddress}`)
       .then(r => r.json())
       .then(d => {
-        const count = d.ticketCount ?? 0;
-        setChainTicketCount(count);
-        
-        // Map the on-chain balance to actual UI cards
-        if (count > 0) {
-          const lastId = localStorage.getItem("last_purchased_event_id") || "12";
-          const event = byId(lastId) || byId("12");
-          
-          const mockTickets: PurchasedTicket[] = Array.from({ length: count }, (_, i) => ({
-            id: `chain-${i}`,
-            event: event,
-            purchasedAt: new Date(),
-            eventDateTime: new Date(event.isoDate),
-            quantity: 1,
-            seatInfo: `Floor GA · Ticket #${4421 + i}`,
-            status: "active" as TicketStatus
-          }));
-          setTickets(mockTickets);
-        } else {
-          setTickets([]);
-        }
+        const records: Array<{
+          purchaseId: string;
+          eventId: string;
+          purchasedAt: string;
+          status: string;
+          returnedAt?: string;
+        }> = d.purchases ?? [];
+
+        const mapped: PurchasedTicket[] = records
+          .filter(r => r.status !== "pending_claim")
+          .map((r, i) => {
+            const event = byId(r.eventId) ?? byId("12")!;
+            return {
+              id: r.purchaseId,
+              event,
+              purchasedAt: new Date(r.purchasedAt),
+              eventDateTime: new Date(event.isoDate),
+              quantity: 1,
+              seatInfo: `Floor GA · Ticket #${4421 + i}`,
+              status: (r.status === "returned" ? "returned" : "active") as TicketStatus,
+              returnedAt: r.returnedAt ? new Date(r.returnedAt) : undefined,
+            };
+          });
+        setTickets(mapped);
       })
-      .catch(() => {
-        setChainTicketCount(null);
-        setTickets([]);
-      })
+      .catch(() => setTickets([]))
       .finally(() => setChainLoading(false));
   }, [walletAddress]);
 

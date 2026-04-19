@@ -3,12 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
+    "predev": "rm -f claims_db.json waitlist_db.json purchases_db.json redemptions_db.json",
     "dev": "next dev",
+    "prestart": "rm -f claims_db.json waitlist_db.json purchases_db.json redemptions_db.json",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
+    "html5-qrcode": "^2.3.8",
     "next": "^15.0.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",

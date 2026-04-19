@@ -1,80 +1,264 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
-function IconHome({ active }: { active?: boolean }) {
+type ScanResult = {
+  valid: boolean;
+  ticketId?: string;
+  wallet?: string;
+  venueId?: string;
+  redeemedAt?: string;
+  error?: string;
+};
+
+function IconScan() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#F06E1D" : "#636366"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 12L12 4l9 8" />
-      <path d="M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" />
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+      <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+      <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+      <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+      <line x1="7" y1="12" x2="17" y2="12" />
     </svg>
   );
 }
 
-function IconTicketNav({ active }: { active?: boolean }) {
+function IconCheck() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#F06E1D" : "#636366"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 9a1 1 0 011-1h.5a1.5 1.5 0 000-3H3a1 1 0 01-1-1V5a2 2 0 012-2h14a2 2 0 012 2v1a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3H20a1 1 0 011 1v1a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3H20a1 1 0 011 1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1a1 1 0 011-1h.5a1.5 1.5 0 000-3H3a1 1 0 01-1-1V9z" />
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#30D158" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
     </svg>
   );
 }
 
-function IconList({ active }: { active?: boolean }) {
+function IconX() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#F06E1D" : "#636366"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="8" y1="6" x2="21" y2="6" />
-      <line x1="8" y1="12" x2="21" y2="12" />
-      <line x1="8" y1="18" x2="21" y2="18" />
-      <line x1="3" y1="6" x2="3.01" y2="6" strokeWidth="2.5" />
-      <line x1="3" y1="12" x2="3.01" y2="12" strokeWidth="2.5" />
-      <line x1="3" y1="18" x2="3.01" y2="18" strokeWidth="2.5" />
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF3B30" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   );
 }
 
 export default function DashboardPage() {
+  const [scanning, setScanning] = useState(false);
+  const [result, setResult] = useState<ScanResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const scannerRef = useRef<import("html5-qrcode").Html5Qrcode | null>(null);
+  const readerDivId = "qr-reader";
+
+  const startScanner = async () => {
+    setResult(null);
+    setScanning(true);
+  };
+
+  useEffect(() => {
+    if (!scanning) return;
+
+    let stopped = false;
+
+    async function init() {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const scanner = new Html5Qrcode(readerDivId);
+      scannerRef.current = scanner;
+
+      try {
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 240, height: 240 } },
+          async (text) => {
+            if (stopped) return;
+            stopped = true;
+            try {
+              await scanner.stop();
+            } catch {}
+            scannerRef.current = null;
+            setScanning(false);
+            await submitQr(text);
+          },
+          () => {}
+        );
+      } catch (e) {
+        setScanning(false);
+        setResult({ valid: false, error: "Camera access denied or unavailable." });
+      }
+    }
+
+    init();
+
+    return () => {
+      stopped = true;
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+        scannerRef.current = null;
+      }
+    };
+  }, [scanning]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      try { await scannerRef.current.stop(); } catch {}
+      scannerRef.current = null;
+    }
+    setScanning(false);
+  };
+
+  const submitQr = async (text: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/devnet/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ qrCodeText: text }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResult({ valid: true, ...data });
+      } else {
+        setResult({ valid: false, error: data.error ?? "Redemption failed." });
+      }
+    } catch {
+      setResult({ valid: false, error: "Network error — could not reach server." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen flex flex-col max-w-md mx-auto pb-24" style={{ background: "#000" }}>
+    <div className="min-h-screen flex flex-col max-w-md mx-auto" style={{ background: "#000" }}>
       <div className="pt-14 pb-4 px-4">
-        <h1 className="text-[28px] font-bold text-white tracking-tight uppercase">Protocol Dashboard</h1>
-        <p className="text-[14px] mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
-          Venue inventory, returns, waitlist, and treasury state management.
+        <h1 className="text-[28px] font-bold text-white tracking-tight">Venue Scanner</h1>
+        <p className="text-[14px] mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>
+          Scan attendee QR codes to validate and mark tickets as used.
         </p>
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-full bg-[#1C1C1E] flex items-center justify-center mx-auto mb-4 border border-white/5">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#636366" strokeWidth="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <line x1="3" y1="9" x2="21" y2="9" />
-              <line x1="9" y1="21" x2="9" y2="9" />
-            </svg>
-          </div>
-          <p className="text-white font-semibold text-[17px]">Under Construction</p>
-          <p className="text-[13px] mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-            The venue portal is currently being finalized.
-          </p>
-        </div>
-      </div>
+      <div className="flex-1 flex flex-col items-center justify-center px-4 gap-8">
+        {/* Camera viewport — always in DOM when scanning */}
+        <div
+          id={readerDivId}
+          style={{
+            width: "100%",
+            maxWidth: 360,
+            borderRadius: 20,
+            overflow: "hidden",
+            display: scanning ? "block" : "none",
+            background: "#1C1C1E",
+          }}
+        />
 
-      <nav
-        className="fixed bottom-0 left-0 right-0 max-w-md mx-auto flex items-center justify-around px-8 pt-3 pb-7"
-        style={{ background: "rgba(0,0,0,0.88)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.1)" }}
-      >
-        <Link href="/" className="flex flex-col items-center gap-1">
-          <IconHome />
-          <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>Home</span>
-        </Link>
-        <Link href="/tickets" className="flex flex-col items-center gap-1">
-          <IconTicketNav />
-          <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>My Tickets</span>
-        </Link>
-        <Link href="/claim" className="flex flex-col items-center gap-1">
-          <IconList />
-          <span className="text-[10px] font-semibold" style={{ color: "#636366" }}>Activity</span>
-        </Link>
-      </nav>
+        {!scanning && !loading && !result && (
+          <div className="flex flex-col items-center gap-6">
+            <div
+              style={{
+                width: 120, height: 120, borderRadius: "50%",
+                background: "#1C1C1E",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              <span style={{ color: "#F06E1D" }}><IconScan /></span>
+            </div>
+            <button
+              onClick={startScanner}
+              style={{
+                background: "#F06E1D", color: "#fff",
+                border: "none", borderRadius: 16,
+                fontSize: 17, fontWeight: 600,
+                padding: "16px 48px", cursor: "pointer",
+              }}
+            >
+              Scan Ticket QR
+            </button>
+          </div>
+        )}
+
+        {scanning && (
+          <button
+            onClick={stopScanner}
+            style={{
+              background: "#2C2C2E", color: "#fff",
+              border: "none", borderRadius: 12,
+              fontSize: 15, fontWeight: 600,
+              padding: "12px 32px", cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+        )}
+
+        {loading && (
+          <div className="flex flex-col items-center gap-4">
+            <div style={{ width: 48, height: 48, border: "3px solid rgba(255,255,255,0.15)", borderTopColor: "#F06E1D", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 15 }}>Validating ticket…</p>
+          </div>
+        )}
+
+        {result && !loading && (
+          <div
+            style={{
+              width: "100%", borderRadius: 24,
+              background: result.valid ? "rgba(48,209,88,0.08)" : "rgba(255,59,48,0.08)",
+              border: `1px solid ${result.valid ? "rgba(48,209,88,0.3)" : "rgba(255,59,48,0.3)"}`,
+              padding: "28px 24px",
+              display: "flex", flexDirection: "column", gap: 16,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <div
+                style={{
+                  width: 64, height: 64, borderRadius: "50%", flexShrink: 0,
+                  background: result.valid ? "rgba(48,209,88,0.15)" : "rgba(255,59,48,0.15)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                {result.valid ? <IconCheck /> : <IconX />}
+              </div>
+              <div>
+                <p style={{ color: "#fff", fontSize: 20, fontWeight: 700, margin: 0 }}>
+                  {result.valid ? "Ticket Valid" : "Scan Failed"}
+                </p>
+                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 14, margin: "4px 0 0" }}>
+                  {result.valid ? "Marked as used on server" : result.error}
+                </p>
+              </div>
+            </div>
+
+            {result.valid && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                <Row label="Ticket ID" value={result.ticketId ?? ""} mono />
+                <Row label="Wallet" value={`${result.wallet?.slice(0, 8)}…${result.wallet?.slice(-6)}`} mono />
+                <Row label="Redeemed" value={result.redeemedAt ? new Date(result.redeemedAt).toLocaleTimeString() : ""} />
+              </div>
+            )}
+
+            <button
+              onClick={() => { setResult(null); }}
+              style={{
+                marginTop: 4,
+                background: result.valid ? "#30D158" : "#FF3B30",
+                color: "#fff", border: "none", borderRadius: 12,
+                fontSize: 15, fontWeight: 600,
+                padding: "14px 0", width: "100%", cursor: "pointer",
+              }}
+            >
+              Scan Next
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+      <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>{label}</span>
+      <span style={{ color: "#fff", fontSize: 13, fontFamily: mono ? "monospace" : undefined, wordBreak: "break-all", textAlign: "right" }}>
+        {value}
+      </span>
     </div>
   );
 }

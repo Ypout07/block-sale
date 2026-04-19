@@ -10,8 +10,8 @@ lsof -ti :3000 | xargs kill -9 2>/dev/null
 echo "🗑️  Clearing corrupt caches and resetting demo data..."
 rm -rf apps/web/.next
 rm -rf node_modules/.cache
-rm -f apps/web/claims_db.json apps/web/waitlist_db.json apps/web/events_db.json
-rm -f claims_db.json waitlist_db.json events_db.json
+rm -f apps/web/claims_db.json apps/web/waitlist_db.json apps/web/events_db.json apps/web/purchases_db.json apps/web/redemptions_db.json
+rm -f claims_db.json waitlist_db.json events_db.json purchases_db.json redemptions_db.json
 
 # 3. Build the application and ensure liquidity
 echo "🏗️  Building production bundle and ensuring liquidity..."

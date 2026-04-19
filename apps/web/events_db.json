@@ -3,5 +3,10 @@
     "eventId": "12",
     "remainingTickets": 0,
     "isSoldOut": true
+  },
+  {
+    "eventId": "11",
+    "remainingTickets": 9,
+    "isSoldOut": false
   }
 ]

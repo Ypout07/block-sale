@@ -397,7 +397,7 @@ export default function ClaimPage() {
         ]);
         const formatted = rawClaims.map((c: any) => ({
           claimId: c.claimId,
-          event: byId(c.venueId) || byId("13"),
+          event: byId(c.eventId) || byId(c.venueId) || byId("12"),
           buyerAddress: c.buyerAddress,
           amountRlusd: c.amountRlusd,
           seatInfo: "General Admission",
@@ -415,7 +415,7 @@ export default function ClaimPage() {
       }
     }
     fetchData();
-    const interval = setInterval(fetchData, 3000);
+    const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, [walletAddress, getClaims, getMyWaitlistStatus]);
 
