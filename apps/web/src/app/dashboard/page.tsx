@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { SharedNavBar } from "@/components/SharedNavBar";
+import { WalletModal } from "@/components/WalletModal";
+import { useProtocol } from "@/hooks/useProtocol";
 
 type ScanResult = {
   valid: boolean;
@@ -10,18 +13,6 @@ type ScanResult = {
   redeemedAt?: string;
   error?: string;
 };
-
-function IconScan() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 7V5a2 2 0 0 1 2-2h2" />
-      <path d="M17 3h2a2 2 0 0 1 2 2v2" />
-      <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
-      <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
-      <line x1="7" y1="12" x2="17" y2="12" />
-    </svg>
-  );
-}
 
 function IconCheck() {
   return (
@@ -41,16 +32,13 @@ function IconX() {
 }
 
 export default function DashboardPage() {
-  const [scanning, setScanning] = useState(false);
+  const { connectWallet } = useProtocol();
+  const [scanning, setScanning] = useState(true);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
   const scannerRef = useRef<import("html5-qrcode").Html5Qrcode | null>(null);
   const readerDivId = "qr-reader";
-
-  const startScanner = async () => {
-    setResult(null);
-    setScanning(true);
-  };
 
   useEffect(() => {
     if (!scanning) return;
@@ -78,7 +66,7 @@ export default function DashboardPage() {
           },
           () => {}
         );
-      } catch (e) {
+      } catch {
         setScanning(false);
         setResult({ valid: false, error: "Camera access denied or unavailable." });
       }
@@ -94,14 +82,6 @@ export default function DashboardPage() {
       }
     };
   }, [scanning]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const stopScanner = async () => {
-    if (scannerRef.current) {
-      try { await scannerRef.current.stop(); } catch {}
-      scannerRef.current = null;
-    }
-    setScanning(false);
-  };
 
   const submitQr = async (text: string) => {
     setLoading(true);
@@ -125,7 +105,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col max-w-md mx-auto" style={{ background: "#000" }}>
+    <div className="min-h-screen flex flex-col max-w-md mx-auto pb-24" style={{ background: "#000" }}>
       <div className="pt-14 pb-4 px-4">
         <h1 className="text-[28px] font-bold text-white tracking-tight">Venue Scanner</h1>
         <p className="text-[14px] mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>
@@ -134,7 +114,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center px-4 gap-8">
-        {/* Camera viewport — always in DOM when scanning */}
+        {/* Camera viewport */}
         <div
           id={readerDivId}
           style={{
@@ -146,46 +126,6 @@ export default function DashboardPage() {
             background: "#1C1C1E",
           }}
         />
-
-        {!scanning && !loading && !result && (
-          <div className="flex flex-col items-center gap-6">
-            <div
-              style={{
-                width: 120, height: 120, borderRadius: "50%",
-                background: "#1C1C1E",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                border: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              <span style={{ color: "#F06E1D" }}><IconScan /></span>
-            </div>
-            <button
-              onClick={startScanner}
-              style={{
-                background: "#F06E1D", color: "#fff",
-                border: "none", borderRadius: 16,
-                fontSize: 17, fontWeight: 600,
-                padding: "16px 48px", cursor: "pointer",
-              }}
-            >
-              Scan Ticket QR
-            </button>
-          </div>
-        )}
-
-        {scanning && (
-          <button
-            onClick={stopScanner}
-            style={{
-              background: "#2C2C2E", color: "#fff",
-              border: "none", borderRadius: 12,
-              fontSize: 15, fontWeight: 600,
-              padding: "12px 32px", cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-        )}
 
         {loading && (
           <div className="flex flex-col items-center gap-4">
@@ -234,7 +174,7 @@ export default function DashboardPage() {
             )}
 
             <button
-              onClick={() => { setResult(null); }}
+              onClick={() => { setResult(null); setScanning(true); }}
               style={{
                 marginTop: 4,
                 background: result.valid ? "#30D158" : "#FF3B30",
@@ -248,6 +188,14 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      <SharedNavBar onWalletClick={() => setWalletModalOpen(true)} forceVisible />
+
+      <WalletModal
+        visible={walletModalOpen}
+        onClose={() => setWalletModalOpen(false)}
+        onConnect={connectWallet}
+      />
     </div>
   );
 }

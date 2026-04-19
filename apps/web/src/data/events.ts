@@ -27,7 +27,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-05-23T19:00:00",
     venue: "Sprint Center · Kansas City, MO",
     price: 85,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/5/5b/Matthew_Matty_Healy_The_1975_%28253662053%29.jpeg",
+    photo: "/events/event-1.jpeg",
     tint: "74,16,128",
   },
   {
@@ -41,7 +41,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-05-09T20:00:00",
     venue: "Arrowhead Stadium · Kansas City, MO",
     price: 250,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/1/17/Beyonce_at_The_Formation_World_Tour%2C_at_Citi_Field.jpg",
+    photo: "/events/event-10.jpg",
     tint: "160,100,0",
   },
 
@@ -57,7 +57,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-04-19T21:00:00",
     venue: "Sprint Center · Kansas City, MO",
     price: 130,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/2/28/Drake_July_2016.jpg",
+    photo: "/events/event-11.jpg",
     tint: "20,30,80",
   },
   {
@@ -71,7 +71,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-04-20T20:00:00",
     venue: "Sprint Center · Kansas City, MO",
     price: 100,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/c/c9/Post_Malone_2019_by_Glenn_Francis.jpg",
+    photo: "/events/event-12.png",
     tint: "80,20,100",
   },
 
@@ -87,7 +87,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-06-07T19:30:00",
     venue: "Arrowhead Stadium · Kansas City, MO",
     price: 120,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/0/06/Chris_Martin%2C_Coldplay%2C_Main_Square_Festival%2C_Arras_2011.jpg",
+    photo: "/events/event-2.jpg",
     tint: "0,80,180",
   },
   {
@@ -101,7 +101,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-06-14T18:00:00",
     venue: "Kauffman Center · Kansas City, MO",
     price: 200,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/7/71/Taylor_Swift_The_Eras_Tour_1989_Era_Set_%2853109542801%29_%28cropped%29.jpg",
+    photo: "/events/event-3.jpg",
     tint: "160,20,80",
   },
   {
@@ -115,7 +115,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-07-02T20:00:00",
     venue: "Sprint Center · Kansas City, MO",
     price: 95,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/b/b1/Bad_Bunny_2019_by_Glenn_Francis_%28cropped%29.jpg",
+    photo: "/events/event-4.jpg",
     tint: "160,80,0",
   },
 
@@ -131,7 +131,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-07-19T20:00:00",
     venue: "Sprint Center · Kansas City, MO",
     price: 110,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/3/32/Pulitzer2018-portraits-kendrick-lamar.jpg",
+    photo: "/events/event-5.jpg",
     tint: "10,80,40",
   },
   {
@@ -145,7 +145,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-05-15T20:30:00",
     venue: "Sprint Center · Kansas City, MO",
     price: 115,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/3/3a/Tyler_The_Creator_%40_Way_Out_West_2015%2C_Gothenburg_%28cropped%29.jpg",
+    photo: "/events/event-13.png",
     tint: "20,100,40",
     soldOut: true,
   },
@@ -160,7 +160,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-05-31T21:00:00",
     venue: "Starlight Theatre · Kansas City, MO",
     price: 95,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/4/4c/Doja_Cat_2019_photo_by_Glenn_Francis.jpg",
+    photo: "/events/event-14.jpg",
     tint: "180,20,120",
   },
 
@@ -176,7 +176,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-09-05T20:00:00",
     venue: "Sprint Center · Kansas City, MO",
     price: 90,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/7/7f/SZA_-_All_the_Stars_%28SOS_Tour%2C_Toronto%29.png",
+    photo: "/events/event-8.jpg",
     tint: "0,100,100",
   },
   {
@@ -190,7 +190,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-06-24T20:00:00",
     venue: "T-Mobile Center · Kansas City, MO",
     price: 140,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/b/b8/Usher_2013_at_White_House.jpg",
+    photo: "/events/event-16.jpg",
     tint: "140,20,20",
   },
 
@@ -206,7 +206,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-08-03T19:00:00",
     venue: "Municipal Auditorium · Kansas City, MO",
     price: 75,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/4/42/Olivia_Rodrigo_performs_%27Get_Him_Back%27_live.jpg",
+    photo: "/events/event-6.jpg",
     tint: "100,10,160",
   },
   {
@@ -220,7 +220,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-08-22T19:30:00",
     venue: "Starlight Theatre · Kansas City, MO",
     price: 80,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/2/2d/Sabrina_Carpenter%2C_The_Eras_Tour%2C_Singapore_National_Stadium%2C_9_March_2024.jpeg",
+    photo: "/events/event-7.jpg",
     tint: "180,40,80",
   },
   {
@@ -234,7 +234,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-09-18T19:00:00",
     venue: "Uptown Theater · Kansas City, MO",
     price: 65,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/a/a1/Chappell_Roan_%40_Hollywood_Palladium_11_18_2022_%2853885660052%29.jpg",
+    photo: "/events/event-9.jpg",
     tint: "180,10,100",
   },
 
@@ -250,7 +250,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-07-09T20:00:00",
     venue: "Crossroads KC · Kansas City, MO",
     price: 88,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/7/73/Arctic_Monkeys_at_Glastonbury_%282013%29.jpg",
+    photo: "/events/event-17.jpg",
     tint: "40,40,60",
   },
   {
@@ -264,7 +264,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-08-01T20:00:00",
     venue: "Starlight Theatre · Kansas City, MO",
     price: 82,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/9/9c/Kevin_Parker_of_Tame_Impala_%28cropped%29.jpg",
+    photo: "/events/event-18.jpg",
     tint: "100,20,140",
   },
   {
@@ -278,7 +278,7 @@ export const ALL_EVENTS: Event[] = [
     isoDate: "2026-08-17T19:30:00",
     venue: "Kauffman Center · Kansas City, MO",
     price: 95,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/8/8d/Lana_Del_Rey_Lollapalooza_Chile_2018_%28cropped%29.jpg",
+    photo: "/events/event-19.jpg",
     tint: "40,60,140",
   },
 ];
