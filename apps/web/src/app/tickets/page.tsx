@@ -513,7 +513,7 @@ export default function TicketsPage() {
         }> = d.purchases ?? [];
 
         const mapped: PurchasedTicket[] = records
-          .filter(r => r.status !== "pending_claim")
+          .filter(r => r.status !== "pending_claim" && r.status !== "returned")
           .map((r, i) => {
             const event = byId(r.eventId) ?? byId("12")!;
             return {

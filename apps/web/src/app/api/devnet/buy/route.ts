@@ -105,10 +105,7 @@ export async function POST(req: NextRequest) {
         xrplClient: {
           request: async (req) => {
             if (req.command === "account_objects") {
-              const account = req.account;
-              if (account !== payerWallet) {
-                return { result: { account_objects: [] } };
-              }
+              return { result: { account_objects: [] } };
             }
             return client.request(req as any);
           }
