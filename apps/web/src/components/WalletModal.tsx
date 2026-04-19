@@ -3,6 +3,16 @@
 import { useState, useEffect, useRef } from "react";
 import { useWalletStore } from "@/store/useWalletStore";
 
+function fallbackCopy(text: string) {
+  const el = document.createElement("textarea");
+  el.value = text;
+  el.style.cssText = "position:fixed;opacity:0";
+  document.body.appendChild(el);
+  el.select();
+  document.execCommand("copy");
+  document.body.removeChild(el);
+}
+
 const ALICE = "rH1wbyfhqKKvybioodsh9ctZiRf8rS1hKS";
 const BOB = "rp8CGFHmV53xKUuUQYfQFh26LBkYN1za8Z";
 
@@ -183,7 +193,12 @@ export function WalletModal({
                 </p>
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(walletAddress ?? "");
+                    const text = walletAddress ?? "";
+                    if (navigator.clipboard) {
+                      navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+                    } else {
+                      fallbackCopy(text);
+                    }
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
                   }}
