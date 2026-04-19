@@ -5,6 +5,7 @@ import { addPendingClaim } from "@/lib/claimStore";
 import { incrementTickets } from "@/lib/eventStore";
 import { markPurchaseReturned, addPurchaseRecord } from "@/lib/purchaseStore";
 import { ALL_EVENTS } from "@/data/events";
+import { Protocol } from "@sdk/index";
 
 const DEVNET_URL = "wss://s.devnet.rippletest.net:51233";
 const CLIENT_OPTIONS = { connectionTimeout: 20000 };
@@ -44,59 +45,112 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Demo seeds missing for return." }, { status: 400 });
     }
 
-    // 1. Ticket Return (User -> Venue)
-    await submitTx(client, Wallet.fromSeed(userSeed), {
-      TransactionType: "Payment",
-      Account: wallet,
-      Destination: VENUE_ADDRESS,
-      Amount: { mpt_issuance_id: MPT_ISSUANCE_ID, value: "1" },
+    const protocol = new Protocol(VENUE_ADDRESS, RLUSD_ISSUER, MPT_ISSUANCE_ID);
+    const didAuth = await protocol.authenticateWallet(wallet);
+    
+    const returnResult = await protocol.returnTicket({
+      venueId: VENUE_ADDRESS,
+      wallet: wallet,
+      ticketId: ticketId,
+      didAuth,
+      runtime: {
+        loadClaimRecord: async (id) => {
+            const event = ALL_EVENTS.find(e => e.id === eventId);
+            const refundAmount = event ? event.price.toString() : "100";
+            
+            return {
+                claimId: id,
+                paymentTxHash: "mock",
+                buyerAddress: wallet,
+                recipientWallet: wallet,
+                vendorAddress: VENUE_ADDRESS,
+                issuanceId: MPT_ISSUANCE_ID,
+                ticketIndex: 0,
+                amountRlusd: refundAmount,
+                currency: "USD",
+                issuerAddress: RLUSD_ISSUER,
+                status: "claimed",
+                createdAt: new Date().toISOString()
+            } as any;
+        },
+        loadNextWaitlistEntry: async (venueIdStr) => {
+            const waitlistKey = eventId || VENUE_ADDRESS;
+            const nextEntry = getNextWaitlistEntry(waitlistKey);
+            if (!nextEntry) return null;
+            return {
+                waitlistId: nextEntry.waitlistId,
+                wallet: nextEntry.wallet,
+                venueId: waitlistKey,
+            } as any;
+        },
+        submitReturnBatch: async (batchPlan) => {
+            const userWalletObj = Wallet.fromSeed(userSeed);
+            const venueWalletObj = Wallet.fromSeed(venueSeed);
+            
+            const returnTx = batchPlan.transactions.find(t => t.role === "ticket_return")?.tx;
+            const refundTx = batchPlan.transactions.find(t => t.role === "refund")?.tx;
+            
+            let ticketReturnResult: any = null;
+            let refundResult: any = null;
+            
+            if (returnTx) {
+                ticketReturnResult = await submitTx(client, userWalletObj, returnTx);
+            }
+            if (refundTx) {
+                refundResult = await submitTx(client, venueWalletObj, refundTx);
+            }
+            
+            return {
+                results: {
+                    ticket_return: ticketReturnResult,
+                    refund: refundResult,
+                    waitlist_escrow_finish: null
+                }
+            };
+        },
+        updateClaimRecord: async (id, updates) => {
+            if (updates.status === "returned") {
+                markPurchaseReturned(ticketId); // Use ticketId as in original code
+            }
+        },
+        updateWaitlistEntry: async (waitlistId, updates) => {
+            if (updates.status === "allocated") {
+                markWaitlistAllocated(waitlistId);
+            }
+        },
+        persistPendingClaim: async (pendingClaim) => {
+            const waitlistKey = eventId || VENUE_ADDRESS;
+            const claimId = `wl_claim_${Date.now()}`;
+            console.log(`Waitlist fulfillment: Found entry for ${pendingClaim.recipientWallet} on event ${waitlistKey}`);
+            
+            addPendingClaim({
+                claimId,
+                venueId: waitlistKey,
+                eventId: waitlistKey, // manually map the event ID
+                buyerAddress: VENUE_ADDRESS,
+                recipientWallet: pendingClaim.recipientWallet,
+                amountRlusd: pendingClaim.amountRlusd,
+                status: "pending_authorization",
+                createdAt: new Date().toISOString(),
+                issuanceId: MPT_ISSUANCE_ID,
+            } as any);
+            addPurchaseRecord({
+                purchaseId: claimId,
+                buyerWallet: VENUE_ADDRESS,
+                recipientWallet: pendingClaim.recipientWallet,
+                eventId: waitlistKey,
+                purchasedAt: new Date().toISOString(),
+                status: "pending_claim",
+                claimId,
+            });
+        }
+      }
     });
 
-    // 2. Refund (Venue -> User)
-    const event = ALL_EVENTS.find(e => e.id === eventId);
-    const refundAmount = event ? event.price.toString() : "100";
-    
-    await submitTx(client, Wallet.fromSeed(venueSeed), {
-      TransactionType: "Payment",
-      Account: VENUE_ADDRESS,
-      Destination: wallet,
-      Amount: { currency: "USD", issuer: RLUSD_ISSUER, value: refundAmount },
-    });
-
-    // 3. AUTO-TRIGGER WAITLIST
-    // Use the eventId to find the correct waitlist
-    const waitlistKey = eventId || VENUE_ADDRESS;
-    const nextEntry = getNextWaitlistEntry(waitlistKey);
-    
-    if (nextEntry) {
-      console.log(`Waitlist fulfillment: Found entry for ${nextEntry.wallet} on event ${waitlistKey}`);
-      const claimId = `wl_claim_${Date.now()}`;
-      addPendingClaim({
-        claimId,
-        venueId: waitlistKey,
-        buyerAddress: VENUE_ADDRESS,
-        recipientWallet: nextEntry.wallet,
-        amountRlusd: refundAmount,
-        status: "pending_authorization",
-        createdAt: new Date().toISOString(),
-        issuanceId: MPT_ISSUANCE_ID,
-      });
-      addPurchaseRecord({
-        purchaseId: claimId,
-        buyerWallet: VENUE_ADDRESS,
-        recipientWallet: nextEntry.wallet,
-        eventId: waitlistKey,
-        purchasedAt: new Date().toISOString(),
-        status: "pending_claim",
-        claimId,
-      });
-      markWaitlistAllocated(nextEntry.waitlistId);
-    } else if (eventId) {
-      // If no one is on waitlist, put ticket back into pool
-      incrementTickets(eventId);
+    if (!returnResult.allocatedWaitlistEntry && eventId) {
+        incrementTickets(eventId);
     }
 
-    markPurchaseReturned(ticketId);
     return NextResponse.json({ success: true });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

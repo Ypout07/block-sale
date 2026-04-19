@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Client, Wallet } from "xrpl";
 import { getPendingClaims, markClaimed } from "@/lib/claimStore";
 import { markPurchaseClaimed } from "@/lib/purchaseStore";
+import { Protocol } from "@sdk/index";
 
 const DEVNET_URL = "wss://s.devnet.rippletest.net:51233";
 const CLIENT_OPTIONS = { connectionTimeout: 20000 };
@@ -59,28 +60,47 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Recipient must be a demo wallet for auto-authorization in this demo." }, { status: 400 });
     }
 
-    // 1. Authorize
-    await submitTx(client, Wallet.fromSeed(recipientSeed), {
-      TransactionType: "MPTokenAuthorize",
-      Account: recipientWallet,
-      MPTokenIssuanceID: MPT_ISSUANCE_ID,
+    const protocol = new Protocol(VENUE_ADDRESS, "", MPT_ISSUANCE_ID);
+    const didAuth = await protocol.authenticateWallet(recipientWallet);
+    const claimResult = await protocol.claimTicket({
+      venueId: VENUE_ADDRESS,
+      wallet: recipientWallet,
+      ticketId: claimId,
+      didAuth,
+      runtime: {
+        xrplClient: {
+          request: async (req: any) => client.request(req)
+        },
+        loadPendingClaim: async (id) => {
+            const currentClaims = getPendingClaims(recipientWallet);
+            const currentClaim = currentClaims.find(c => c.claimId === id);
+            if (!currentClaim) return null;
+            return {
+                ...currentClaim,
+                vendorAddress: VENUE_ADDRESS, // Force valid XRPL address, ignoring potentially corrupted db value
+            } as any;
+        },
+        submitAuthorization: async (authorizeTx) => {
+            return submitTx(client, Wallet.fromSeed(recipientSeed), authorizeTx);
+        },
+        submitTicketRelease: async (releaseTx) => {
+            const venueWalletObj = Wallet.fromSeed(DEMO_SEEDS[VENUE_ADDRESS]);
+            return submitTx(client, venueWalletObj, releaseTx);
+        },
+        consumePendingClaim: async (id, updates) => {
+            if (updates.status === "claimed") {
+                markClaimed(id);
+                markPurchaseClaimed(id);
+            }
+        }
+      }
     });
 
-    // 2. Release
-    const venueWalletObj = Wallet.fromSeed(DEMO_SEEDS[VENUE_ADDRESS]);
-    const releaseResult = await submitTx(client, venueWalletObj, {
-      TransactionType: "Payment",
-      Account: VENUE_ADDRESS,
-      Destination: recipientWallet,
-      Amount: { mpt_issuance_id: MPT_ISSUANCE_ID, value: "1" },
-    });
-
-    if (releaseResult.meta?.TransactionResult === "tesSUCCESS") {
-      markClaimed(claimId);
-      markPurchaseClaimed(claimId);
-      return NextResponse.json({ success: true, hash: releaseResult.hash });
+    if (claimResult.claimStatus === "claimed") {
+      const releaseHash = (claimResult.releaseResult as any)?.hash;
+      return NextResponse.json({ success: true, hash: releaseHash });
     } else {
-      return NextResponse.json({ error: `Release failed: ${releaseResult.meta?.TransactionResult}` }, { status: 500 });
+      return NextResponse.json({ error: `Release failed or skipped.` }, { status: 500 });
     }
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
