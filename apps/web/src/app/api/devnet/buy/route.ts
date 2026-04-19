@@ -86,6 +86,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Pre-authorize payer so self-purchases land in tickets directly (not activity)
+    if (recipients.includes(payerWallet)) {
+      try {
+        await submitTx(client, payerWalletObj, {
+          TransactionType: "MPTokenAuthorize",
+          Account: payerWallet,
+          MPTokenIssuanceID: MPT_ISSUANCE_ID,
+        });
+      } catch {
+        // Already authorized — ignore
+      }
+    }
+
     const protocol = new Protocol(VENUE_ADDRESS, RLUSD_ISSUER, MPT_ISSUANCE_ID);
 
     const payerDidAuth = await protocol.authenticateWallet(payerWallet);
@@ -105,7 +118,10 @@ export async function POST(req: NextRequest) {
         xrplClient: {
           request: async (req) => {
             if (req.command === "account_objects") {
-              return { result: { account_objects: [] } };
+              const account = req.account;
+              if (account !== payerWallet) {
+                return { result: { account_objects: [] } };
+              }
             }
             return client.request(req as any);
           }
