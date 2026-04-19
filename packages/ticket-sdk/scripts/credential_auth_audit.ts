@@ -1,5 +1,5 @@
 import { createCredentialAuthProvider, Protocol } from "../dist/index.js";
-import { createClient, submitTx } from "./lib/primaryFlow.ts";
+import { createClient, createFundedWallet, submitTx } from "./lib/primaryFlow.ts";
 
 type AuditScenario = {
   name: string;
@@ -32,9 +32,9 @@ async function runAudit() {
   await client.connect();
 
   try {
-    const issuerFund = await client.fundWallet();
-    const holderFund = await client.fundWallet();
-    const wrongFund = await client.fundWallet();
+    const issuerFund = await createFundedWallet(client, undefined, undefined, "Credential Audit: Create Issuer Wallet");
+    const holderFund = await createFundedWallet(client, undefined, undefined, "Credential Audit: Create Holder Wallet");
+    const wrongFund = await createFundedWallet(client, undefined, undefined, "Credential Audit: Create Wrong Wallet");
 
     const issuerWallet = issuerFund.wallet;
     const holderWallet = holderFund.wallet;

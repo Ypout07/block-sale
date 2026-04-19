@@ -1,11 +1,11 @@
 import { Client } from "xrpl";
-const DEVNET_URL = "wss://s.devnet.rippletest.net:51233";
+const XRPL_WS_URL = process.env.XRPL_WS_URL || "ws://127.0.0.1:6006";
 const VENUE = "rDa3E72iujUJciri1B8djcmowVsuNDu4QT";
 const ALICE = "rH1wbyfhqKKvybioodsh9ctZiRf8rS1hKS";
 const ISSUER = "rLVPGrB5vPYryqtghu3zQ9F6mSdJmNEJB1";
 
 async function check() {
-  const client = new Client(DEVNET_URL);
+  const client = new Client(XRPL_WS_URL);
   await client.connect();
   
   console.log("--- ALICE ---");

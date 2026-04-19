@@ -21,6 +21,9 @@ export const DEVNET_URL = "wss://s.devnet.rippletest.net:51233";
 export const USD_CURRENCY = "USD";
 export const PRIMARY_PURCHASE_AMOUNT = "50";
 export const BUYER_TOP_UP_AMOUNT = "100";
+export const STANDALONE_GENESIS_SEED = "snoPBrXtMeMyMHUVTgbuqAfg1SUTb";
+export const STANDALONE_GENESIS_ADDRESS = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
+export const STANDALONE_STARTING_XRP_DROPS = "1000000000";
 
 export type DevnetConfig = {
   networkWsUrl?: string;
@@ -112,12 +115,60 @@ export function requireField(config: DevnetConfig, key: keyof DevnetConfig): str
   return value;
 }
 
-export function createClient(url = DEVNET_URL) {
+export function createClient(url = getNetworkUrl()) {
   return new Client(url);
 }
 
 export function getNetworkUrl(config?: DevnetConfig) {
   return process.env.XRPL_WS_URL || config?.networkWsUrl || DEVNET_URL;
+}
+
+export function isLocalStandaloneUrl(url: string) {
+  return /^wss?:\/\/(127\.0\.0\.1|localhost)(:\d+)?/i.test(url);
+}
+
+function getClientUrl(client?: InstanceType<typeof Client>) {
+  if (!client) {
+    return undefined;
+  }
+
+  const directUrl = (client as { url?: unknown }).url;
+  if (typeof directUrl === "string") {
+    return directUrl;
+  }
+
+  const connectionUrl = (client as { connection?: { url?: unknown } }).connection?.url;
+  if (typeof connectionUrl === "string") {
+    return connectionUrl;
+  }
+
+  return undefined;
+}
+
+export function isLocalStandaloneClient(
+  client?: InstanceType<typeof Client>,
+  config?: DevnetConfig
+) {
+  const clientUrl = getClientUrl(client);
+  if (clientUrl) {
+    return isLocalStandaloneUrl(clientUrl);
+  }
+
+  return isLocalStandaloneNetwork(config);
+}
+
+export function isLocalStandaloneNetwork(config?: DevnetConfig) {
+  return isLocalStandaloneUrl(getNetworkUrl(config));
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getStandaloneGenesisWallet() {
+  return Wallet.fromSeed(STANDALONE_GENESIS_SEED, {
+    algorithm: "secp256k1"
+  });
 }
 
 export function computeMptIssuanceId(address: string, sequence: number) {
@@ -174,6 +225,123 @@ export function summarizeTx(label: string, result: any): SubmittedTx {
   };
 }
 
+async function submitBlobAndWait(
+  client: InstanceType<typeof Client>,
+  txBlob: string,
+  txHash: string,
+  config?: DevnetConfig
+) {
+  if (!isLocalStandaloneClient(client, config)) {
+    const wrapper = await client.submitAndWait(txBlob);
+    return wrapper.result;
+  }
+
+  const submitResponse = await client.request({
+    command: "submit",
+    tx_blob: txBlob
+  });
+  const submitResult = submitResponse.result as {
+    engine_result?: string;
+    engine_result_message?: string;
+    applied?: boolean;
+    accepted?: boolean;
+    queued?: boolean;
+  };
+
+  if (submitResult.engine_result && submitResult.engine_result !== "tesSUCCESS" && submitResult.engine_result !== "terQUEUED") {
+    const txJson = (submitResponse.result as { tx_json?: Record<string, unknown> }).tx_json;
+    const txSummary = txJson
+      ? ` tx=${JSON.stringify({
+          Account: txJson.Account,
+          Destination: txJson.Destination,
+          Amount: txJson.Amount ?? txJson.DeliverMax,
+          Sequence: txJson.Sequence,
+          Fee: txJson.Fee,
+          TransactionType: txJson.TransactionType
+        })}`
+      : "";
+    throw new Error(
+      `Local standalone submit failed with ${submitResult.engine_result}: ${submitResult.engine_result_message ?? "unknown error"}${txSummary}`
+    );
+  }
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await client.request({
+      command: "ledger_accept"
+    });
+
+    try {
+      const txResponse = await client.request({
+        command: "tx",
+        transaction: txHash
+      });
+
+      if ((txResponse.result as { validated?: boolean }).validated) {
+        return txResponse.result;
+      }
+    } catch {
+      // The tx may not be queryable until the next accepted ledger.
+    }
+
+    await sleep(100);
+  }
+
+  throw new Error(`Timed out waiting for local standalone transaction ${txHash} to validate.`);
+}
+
+export async function advanceLocalStandaloneToRippleTime(
+  client: InstanceType<typeof Client>,
+  targetRippleTime: number,
+  config?: DevnetConfig
+) {
+  if (!isLocalStandaloneClient(client, config)) {
+    return;
+  }
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const serverInfo = await client.request({
+      command: "server_info"
+    });
+    const serverTimeText = (serverInfo.result as { info?: { time?: string } }).info?.time;
+    if (typeof serverTimeText !== "string") {
+      return;
+    }
+
+    const serverTimeMs = Date.parse(serverTimeText.replace(" UTC", "Z"));
+    if (!Number.isFinite(serverTimeMs)) {
+      return;
+    }
+
+    const currentRippleTime = Math.floor(serverTimeMs / 1000) - 946684800;
+    if (currentRippleTime >= targetRippleTime) {
+      return;
+    }
+
+    await client.request({
+      command: "ledger_accept"
+    });
+  }
+}
+
+export async function getCurrentRippleTime(
+  client: InstanceType<typeof Client>
+) {
+  const serverInfo = await client.request({
+    command: "server_info"
+  });
+  const serverTimeText = (serverInfo.result as { info?: { time?: string } }).info?.time;
+  if (typeof serverTimeText !== "string") {
+    throw new Error("server_info did not return a usable time field.");
+  }
+
+  const serverTimeMs = Date.parse(serverTimeText.replace(" UTC", "Z"));
+  if (!Number.isFinite(serverTimeMs)) {
+    throw new Error(`Could not parse XRPL server time: ${serverTimeText}`);
+  }
+
+  return Math.floor(serverTimeMs / 1000) - 946684800;
+}
+
 async function hookAwareFee(
   client: InstanceType<typeof Client>,
   wallet: InstanceType<typeof Wallet>,
@@ -201,7 +369,7 @@ export async function submitTx(
   wallet: InstanceType<typeof Wallet>,
   tx: Record<string, unknown>,
   label: string,
-  options?: { throwOnFail?: boolean; log?: boolean }
+  options?: { throwOnFail?: boolean; log?: boolean; config?: DevnetConfig }
 ) {
   const throwOnFail = options?.throwOnFail ?? true;
   const shouldLog = options?.log ?? true;
@@ -213,12 +381,12 @@ export async function submitTx(
   prepared.Fee = await hookAwareFee(client, wallet, prepared as unknown as Record<string, unknown>);
 
   const signed = wallet.sign(prepared);
-  const wrapper = await client.submitAndWait(signed.tx_blob);
-  const summary = summarizeTx(label, wrapper.result);
+  const result = await submitBlobAndWait(client, signed.tx_blob, signed.hash, options?.config);
+  const summary = summarizeTx(label, result);
 
   if (shouldLog) {
     console.log(`\n--- ${label} ---`);
-    console.log(JSON.stringify(wrapper.result, null, 2));
+    console.log(JSON.stringify(result, null, 2));
   }
 
   if (throwOnFail && !summary.accepted) {
@@ -248,6 +416,7 @@ export async function submitNativeBatch(input: {
   signingWallets: Record<string, InstanceType<typeof Wallet>>;
   innerTransactions: Record<string, unknown>[];
   label: string;
+  config?: DevnetConfig;
 }) {
   const preparedInnerTransactions = [];
   for (const tx of input.innerTransactions) {
@@ -263,9 +432,44 @@ export async function submitNativeBatch(input: {
     RawTransactions: preparedInnerTransactions
   });
 
+  // rippled's Batch fee is higher than a normal autofilled fee:
+  // batch wrapper base + batch processing base + each inner tx base + each batch signer base.
+  const feeResponse = await input.client.request({
+    command: "fee"
+  });
+  const drops = (feeResponse.result as { drops?: { base_fee?: string; open_ledger_fee?: string } }).drops;
+  const baseFee = Number(drops?.base_fee ?? "10");
+  const openLedgerFee = Number(drops?.open_ledger_fee ?? String(baseFee));
+  const referenceFee = Math.max(baseFee, openLedgerFee, 1);
+
   const involvedAccounts = Array.from(
     new Set(preparedInnerTransactions.map((rawTx) => String((rawTx.RawTransaction as Record<string, unknown>).Account)))
   );
+  outerBatch.Fee = String(referenceFee * (2 + preparedInnerTransactions.length + involvedAccounts.length));
+
+  const nextSequenceByAccount = new Map<string, number>();
+  for (const preparedRawTransaction of preparedInnerTransactions) {
+    const rawTransaction = preparedRawTransaction.RawTransaction as Record<string, unknown>;
+    const account = String(rawTransaction.Account);
+
+    if ("TicketSequence" in rawTransaction && rawTransaction.TicketSequence != null) {
+      continue;
+    }
+
+    if (!nextSequenceByAccount.has(account)) {
+      const startingSequence =
+        account === input.outerAccountWallet.address
+          ? Number(outerBatch.Sequence) + 1
+          : Number(rawTransaction.Sequence);
+      nextSequenceByAccount.set(account, startingSequence);
+    }
+
+    const nextSequence = nextSequenceByAccount.get(account);
+    if (typeof nextSequence === "number" && Number.isFinite(nextSequence)) {
+      rawTransaction.Sequence = nextSequence;
+      nextSequenceByAccount.set(account, nextSequence + 1);
+    }
+  }
 
   const signedBatchCopies: Array<Record<string, unknown>> = [];
   for (const account of involvedAccounts) {
@@ -284,11 +488,11 @@ export async function submitNativeBatch(input: {
   const combinedBlob = combineBatchSigners(signedBatchCopies as any);
   const combinedBatch = decode(combinedBlob) as Record<string, unknown>;
   const outerSigned = input.outerAccountWallet.sign(combinedBatch as any);
-  const wrapper = await input.client.submitAndWait(outerSigned.tx_blob);
-  const summary = summarizeTx(input.label, wrapper.result);
+  const result = await submitBlobAndWait(input.client, outerSigned.tx_blob, outerSigned.hash, input.config);
+  const summary = summarizeTx(input.label, result);
 
   console.log(`\n--- ${input.label} ---`);
-  console.log(JSON.stringify(wrapper.result, null, 2));
+  console.log(JSON.stringify(result, null, 2));
 
   if (!summary.accepted) {
     throw new Error(`${input.label} failed with ${summary.transactionResult}`);
@@ -299,7 +503,8 @@ export async function submitNativeBatch(input: {
 
 export async function enableIssuerDefaultRipple(
   client: InstanceType<typeof Client>,
-  issuerWallet: InstanceType<typeof Wallet>
+  issuerWallet: InstanceType<typeof Wallet>,
+  config?: DevnetConfig
 ) {
   return submitTx(
     client,
@@ -309,14 +514,16 @@ export async function enableIssuerDefaultRipple(
       Account: issuerWallet.address,
       SetFlag: AccountSetAsfFlags.asfDefaultRipple
     },
-    "Enable Default Ripple On Mock RLUSD Issuer"
+    "Enable Default Ripple On Mock RLUSD Issuer",
+    { config }
   );
 }
 
 export async function clearDepositAuth(
   client: InstanceType<typeof Client>,
   wallet: InstanceType<typeof Wallet>,
-  label = "Clear DepositAuth"
+  label = "Clear DepositAuth",
+  config?: DevnetConfig
 ) {
   return submitTx(
     client,
@@ -327,7 +534,7 @@ export async function clearDepositAuth(
       ClearFlag: AccountSetAsfFlags.asfDepositAuth
     },
     label,
-    { throwOnFail: false }
+    { throwOnFail: false, config }
   );
 }
 
@@ -335,7 +542,8 @@ export async function ensureUsdTrustline(
   client: InstanceType<typeof Client>,
   wallet: InstanceType<typeof Wallet>,
   issuerAddress: string,
-  label: string
+  label: string,
+  config?: DevnetConfig
 ) {
   return submitTx(
     client,
@@ -350,7 +558,8 @@ export async function ensureUsdTrustline(
       },
       Flags: TrustSetFlags.tfClearNoRipple
     },
-    label
+    label,
+    { config }
   );
 }
 
@@ -359,7 +568,8 @@ export async function fundWithMockUsd(
   issuerWallet: InstanceType<typeof Wallet>,
   destinationAddress: string,
   amount: string,
-  label: string
+  label: string,
+  config?: DevnetConfig
 ) {
   return submitTx(
     client,
@@ -374,13 +584,15 @@ export async function fundWithMockUsd(
         value: amount
       }
     },
-    label
+    label,
+    { config }
   );
 }
 
 export async function createMptIssuance(
   client: InstanceType<typeof Client>,
-  vendorWallet: InstanceType<typeof Wallet>
+  vendorWallet: InstanceType<typeof Wallet>,
+  config?: DevnetConfig
 ) {
   const issuanceTx = {
     TransactionType: "MPTokenIssuanceCreate",
@@ -396,12 +608,12 @@ export async function createMptIssuance(
   prepared.Fee = await hookAwareFee(client, vendorWallet, prepared as unknown as Record<string, unknown>);
   const issuanceId = computeMptIssuanceId(vendorWallet.address, prepared.Sequence);
   const signed = vendorWallet.sign(prepared);
-  const wrapper = await client.submitAndWait(signed.tx_blob);
+  const result = await submitBlobAndWait(client, signed.tx_blob, signed.hash, config);
 
   console.log(`\n--- Create Ticket MPT Issuance ---`);
-  console.log(JSON.stringify(wrapper.result, null, 2));
+  console.log(JSON.stringify(result, null, 2));
 
-  const summary = summarizeTx("Create Ticket MPT Issuance", wrapper.result);
+  const summary = summarizeTx("Create Ticket MPT Issuance", result);
   if (!summary.accepted) {
     throw new Error(`Create Ticket MPT Issuance failed with ${summary.transactionResult}`);
   }
@@ -426,7 +638,8 @@ export async function ensureMptAuthorization(
   client: InstanceType<typeof Client>,
   wallet: InstanceType<typeof Wallet>,
   issuanceId: string,
-  label: string
+  label: string,
+  config?: DevnetConfig
 ) {
   const objects = await client.request({
     command: "account_objects",
@@ -457,7 +670,8 @@ export async function ensureMptAuthorization(
       Account: wallet.address,
       MPTokenIssuanceID: issuanceId
     },
-    label
+    label,
+    { config }
   );
 }
 
@@ -466,7 +680,8 @@ export async function ensureMockUsdBalance(
   issuerWallet: InstanceType<typeof Wallet>,
   holderWallet: InstanceType<typeof Wallet>,
   minimumBalance: string,
-  label: string
+  label: string,
+  config?: DevnetConfig
 ) {
   const lines = await client.request({
     command: "account_lines",
@@ -493,7 +708,7 @@ export async function ensureMockUsdBalance(
   }
 
   const topUpAmount = String(targetBalance - currentBalance);
-  return fundWithMockUsd(client, issuerWallet, holderWallet.address, topUpAmount, label);
+  return fundWithMockUsd(client, issuerWallet, holderWallet.address, topUpAmount, label, config);
 }
 
 export async function buyerPaysVendorInMockUsd(
@@ -503,7 +718,8 @@ export async function buyerPaysVendorInMockUsd(
   vendorAddress: string,
   amount = PRIMARY_PURCHASE_AMOUNT,
   label = "Buyer Pays Vendor In Mock RLUSD",
-  throwOnFail = true
+  throwOnFail = true,
+  config?: DevnetConfig
 ) {
   return submitTx(
     client,
@@ -519,7 +735,7 @@ export async function buyerPaysVendorInMockUsd(
       }
     },
     label,
-    { throwOnFail }
+    { throwOnFail, config }
   );
 }
 
@@ -529,7 +745,8 @@ export async function vendorSendsTicketMpt(
   destinationAddress: string,
   issuanceId: string,
   label: string,
-  throwOnFail = true
+  throwOnFail = true,
+  config?: DevnetConfig
 ) {
   return submitTx(
     client,
@@ -544,8 +761,71 @@ export async function vendorSendsTicketMpt(
       }
     },
     label,
-    { throwOnFail }
+    { throwOnFail, config }
   );
+}
+
+export async function ensureXrpBalance(
+  client: InstanceType<typeof Client>,
+  wallet: InstanceType<typeof Wallet>,
+  minimumDrops = STANDALONE_STARTING_XRP_DROPS,
+  label = `Fund ${wallet.address}`,
+  config?: DevnetConfig
+) {
+  const localStandalone = isLocalStandaloneNetwork(config);
+
+  try {
+    const accountInfo = await client.request({
+      command: "account_info",
+      account: wallet.address
+    });
+    const balance = Number((accountInfo.result as { account_data?: { Balance?: string } }).account_data?.Balance ?? "0");
+    if ((!localStandalone && balance > 0) || balance >= Number(minimumDrops)) {
+      return {
+        label,
+        hash: undefined,
+        transactionResult: "already_funded",
+        accepted: true,
+        hookExecutions: [],
+        raw: { skipped: true, balance }
+      } satisfies SubmittedTx;
+    }
+  } catch {
+    // Unfunded account; continue to local genesis funding if available.
+  }
+
+  if (!localStandalone) {
+    throw new Error(`Wallet ${wallet.address} is not funded and no public faucet flow is available in this audit path.`);
+  }
+
+  const genesisWallet = getStandaloneGenesisWallet();
+  return submitTx(
+    client,
+    genesisWallet,
+    {
+      TransactionType: "Payment",
+      Account: genesisWallet.address,
+      Destination: wallet.address,
+      Amount: minimumDrops
+    },
+    label,
+    { config }
+  );
+}
+
+export async function createFundedWallet(
+  client: InstanceType<typeof Client>,
+  config?: DevnetConfig,
+  amountDrops = STANDALONE_STARTING_XRP_DROPS,
+  label = "Create funded wallet"
+) {
+  if (!isLocalStandaloneNetwork(config)) {
+    return client.fundWallet();
+  }
+
+  const wallet = Wallet.generate();
+  await ensureXrpBalance(client, wallet, amountDrops, label, config);
+  return { wallet };
 }
 
 export function buildHookParamArtifacts(issuerAddress: string, issuanceId: string): HookParamArtifact[] {
@@ -612,9 +892,13 @@ export async function provisionPrimaryContext(options?: {
   await client.connect();
 
   try {
+    await ensureXrpBalance(client, vendorWallet, STANDALONE_STARTING_XRP_DROPS, "Fund Vendor Wallet", config);
+    await ensureXrpBalance(client, buyerWallet, STANDALONE_STARTING_XRP_DROPS, "Fund Buyer Wallet", config);
+    await ensureXrpBalance(client, secondaryWallet, STANDALONE_STARTING_XRP_DROPS, "Fund Secondary Wallet", config);
+
     let issuerWallet: InstanceType<typeof Wallet>;
     if (options?.freshIssuer ?? true) {
-      const funded = await client.fundWallet();
+      const funded = await createFundedWallet(client, config, STANDALONE_STARTING_XRP_DROPS, "Create Issuer Wallet");
       issuerWallet = funded.wallet;
       config.rlusdIssuerSeed = issuerWallet.seed;
       config.rlusdIssuer = issuerWallet.address;
@@ -623,16 +907,16 @@ export async function provisionPrimaryContext(options?: {
       issuerWallet = Wallet.fromSeed(requireField(config, "rlusdIssuerSeed"));
     }
 
-    await enableIssuerDefaultRipple(client, issuerWallet);
-    await ensureUsdTrustline(client, vendorWallet, issuerWallet.address, "Vendor TrustSet For Mock RLUSD");
-    await ensureUsdTrustline(client, buyerWallet, issuerWallet.address, "Buyer TrustSet For Mock RLUSD");
-    await ensureUsdTrustline(client, secondaryWallet, issuerWallet.address, "Secondary TrustSet For Mock RLUSD");
+    await enableIssuerDefaultRipple(client, issuerWallet, config);
+    await ensureUsdTrustline(client, vendorWallet, issuerWallet.address, "Vendor TrustSet For Mock RLUSD", config);
+    await ensureUsdTrustline(client, buyerWallet, issuerWallet.address, "Buyer TrustSet For Mock RLUSD", config);
+    await ensureUsdTrustline(client, secondaryWallet, issuerWallet.address, "Secondary TrustSet For Mock RLUSD", config);
 
     const buyerMinimumUsd = options?.buyerMinimumUsd ?? BUYER_TOP_UP_AMOUNT;
     const secondaryMinimumUsd = options?.secondaryMinimumUsd ?? BUYER_TOP_UP_AMOUNT;
 
-    await ensureMockUsdBalance(client, issuerWallet, buyerWallet, buyerMinimumUsd, "Issuer Funds Buyer With Mock RLUSD");
-    await ensureMockUsdBalance(client, issuerWallet, secondaryWallet, secondaryMinimumUsd, "Issuer Funds Secondary Holder With Mock RLUSD");
+    await ensureMockUsdBalance(client, issuerWallet, buyerWallet, buyerMinimumUsd, "Issuer Funds Buyer With Mock RLUSD", config);
+    await ensureMockUsdBalance(client, issuerWallet, secondaryWallet, secondaryMinimumUsd, "Issuer Funds Secondary Holder With Mock RLUSD", config);
 
     let issuanceId = config.mptIssuanceId;
     const useFreshIssuance =
@@ -641,14 +925,14 @@ export async function provisionPrimaryContext(options?: {
       !(await issuanceExists(client, issuanceId));
 
     if (useFreshIssuance) {
-      const created = await createMptIssuance(client, vendorWallet);
+      const created = await createMptIssuance(client, vendorWallet, config);
       issuanceId = created.issuanceId;
       config.mptIssuanceId = issuanceId;
       saveDevnetConfig(config, configPath);
     }
 
-    await ensureMptAuthorization(client, buyerWallet, issuanceId, "Buyer Authorizes MPT Receipt");
-    await ensureMptAuthorization(client, secondaryWallet, issuanceId, "Secondary Holder Authorizes MPT Receipt");
+    await ensureMptAuthorization(client, buyerWallet, issuanceId, "Buyer Authorizes MPT Receipt", config);
+    await ensureMptAuthorization(client, secondaryWallet, issuanceId, "Secondary Holder Authorizes MPT Receipt", config);
 
     const hookParams = buildHookParamArtifacts(issuerWallet.address, issuanceId);
     const artifactPath = writePrimaryHookArtifact({

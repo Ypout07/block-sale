@@ -1,10 +1,10 @@
 import { Client, Wallet } from "xrpl";
-const DEVNET_URL = "wss://s.devnet.rippletest.net:51233";
+const XRPL_WS_URL = process.env.XRPL_WS_URL || "ws://127.0.0.1:6006";
 const ALICE_SEED = "sEdViyntgnVLEaerZG2vthtbk5MFKQM";
 const ISSUER = "rLVPGrB5vPYryqtghu3zQ9F6mSdJmNEJB1";
 
 async function fix() {
-  const client = new Client(DEVNET_URL);
+  const client = new Client(XRPL_WS_URL);
   await client.connect();
   const alice = Wallet.fromSeed(ALICE_SEED);
   

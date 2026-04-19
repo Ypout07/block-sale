@@ -1,9 +1,11 @@
+import type { Payment } from "xrpl";
 import {
   mockDidAuthProvider,
   type DidAuthProvider,
   type WalletDidAuth
 } from "../oracle/mockDidVerifier.js";
 import type { PendingClaimRecord } from "./claimTicket.js";
+import { buildOnLedgerRedemptionMemos } from "../runtime/onLedgerState.js";
 
 export type TicketQrPayload = {
   schemaVersion: 1;
@@ -41,8 +43,17 @@ export type RedeemTicketRuntime = {
   loadPendingClaim?: (ticketId: string) => Promise<PendingClaimRecord | null> | PendingClaimRecord | null;
   updateClaimRecord?: (
     claimId: string,
-    updates: { status: "redeemed"; redeemedAt: string; redemptionHash: string }
+    updates: {
+      status: "redeemed";
+      redeemedAt: string;
+      redemptionHash: string;
+      redemptionTxHash?: string;
+    }
   ) => Promise<void> | void;
+  submitRedemptionMarker?: (
+    redemptionTx: Payment,
+    context: { claimRecord: PendingClaimRecord; qrPayload: TicketQrPayload; redemptionHash: string }
+  ) => Promise<unknown>;
   authProvider?: DidAuthProvider;
   now?: () => Date;
 };
@@ -67,6 +78,8 @@ export type RedeemTicketResult = {
     provider: string;
   };
   redemptionHash: string;
+  redemptionTx?: Payment;
+  redemptionResult?: unknown;
 };
 
 function iso(date: Date) {
@@ -259,10 +272,48 @@ export async function redeemTicket(input: RedeemTicketInput): Promise<RedeemTick
     throw new Error("DID authentication artifact does not match the QR payload.");
   }
 
+  let redemptionTx: Payment | undefined;
+  let redemptionResult: unknown;
+  let redemptionTxHash: string | undefined;
+
+  if (runtime?.submitRedemptionMarker) {
+    redemptionTx = {
+      TransactionType: "Payment",
+      Account: input.venueId,
+      Destination: input.wallet,
+      Amount: "1",
+      Memos: buildOnLedgerRedemptionMemos({
+        entity: "redemption",
+        ticketId: input.ticketId,
+        wallet: input.wallet,
+        venueId: input.venueId,
+        issuanceId: qrPayload.issuanceId,
+        qrHash: expectedHash,
+        redeemedAt: now.toISOString()
+      })
+    };
+
+    redemptionResult = await runtime.submitRedemptionMarker(redemptionTx, {
+      claimRecord,
+      qrPayload,
+      redemptionHash: expectedHash
+    });
+
+    const raw =
+      redemptionResult && typeof redemptionResult === "object" && "raw" in redemptionResult
+        ? (redemptionResult as { raw?: Record<string, unknown> }).raw
+        : redemptionResult;
+    redemptionTxHash =
+      raw && typeof raw === "object" && typeof (raw as { hash?: unknown }).hash === "string"
+        ? ((raw as { hash: string }).hash)
+        : undefined;
+  }
+
   await runtime?.updateClaimRecord?.(input.ticketId, {
     status: "redeemed",
     redeemedAt: now.toISOString(),
-    redemptionHash: expectedHash
+    redemptionHash: expectedHash,
+    redemptionTxHash
   });
 
   return {
@@ -271,6 +322,8 @@ export async function redeemTicket(input: RedeemTicketInput): Promise<RedeemTick
     redemptionStatus: "redeemed",
     qrPayload,
     didVerification,
-    redemptionHash: expectedHash
+    redemptionHash: expectedHash,
+    redemptionTx,
+    redemptionResult
   };
 }

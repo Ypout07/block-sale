@@ -7,6 +7,7 @@ import {
 export type WaitlistEntryRecord = {
   waitlistId: string;
   venueId: string;
+  eventId?: string;
   escrowDestination: string;
   wallet: string;
   depositDrops: string;
@@ -34,6 +35,7 @@ export type JoinWaitlistRuntime = {
 
 export type JoinWaitlistInput = {
   venueId: string;
+  eventId?: string;
   wallet: string;
   depositDrops: string;
   didAuth: WalletDidAuth;
@@ -52,6 +54,12 @@ export type JoinWaitlistResult = {
 
 function rippleTimeFromDate(date: Date) {
   return Math.floor(date.getTime() / 1000) - 946684800;
+}
+
+function hexFromUtf8(value: string) {
+  return Array.from(new TextEncoder().encode(value), (byte) =>
+    byte.toString(16).padStart(2, "0")
+  ).join("");
 }
 
 function unwrapTxResult(candidate: unknown): Record<string, any> {
@@ -129,12 +137,28 @@ export async function joinWaitlist(input: JoinWaitlistInput): Promise<JoinWaitli
     Destination: escrowDestination,
     Amount: input.depositDrops,
     FinishAfter: finishAfter,
-    CancelAfter: cancelAfter
+    CancelAfter: cancelAfter,
+    Memos: [
+      {
+        Memo: {
+          MemoType: hexFromUtf8("WaitlistEntry"),
+          MemoFormat: hexFromUtf8("application/json"),
+          MemoData: hexFromUtf8(
+            JSON.stringify({
+              waitlistId,
+              venueId: input.venueId,
+              eventId: input.eventId
+            })
+          )
+        }
+      }
+    ]
   };
 
   const waitlistEntry: WaitlistEntryRecord = {
     waitlistId,
     venueId: input.venueId,
+    eventId: input.eventId,
     escrowDestination,
     wallet: input.wallet,
     depositDrops: input.depositDrops,

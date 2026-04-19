@@ -3,24 +3,20 @@ import { createCredentialAuthProvider, Protocol } from "../dist/index.js";
 import type { SubmittedTx } from "./lib/primaryFlow.ts";
 import {
   PRIMARY_PURCHASE_AMOUNT,
+  advanceLocalStandaloneToRippleTime,
   clearDepositAuth,
+  createFundedWallet,
   ensureMockUsdBalance,
+  getCurrentRippleTime,
+  isLocalStandaloneClient,
+  isLocalStandaloneNetwork,
   ensureUsdTrustline,
   getPrimaryAuditReportPath,
   provisionPrimaryContext,
+  submitNativeBatch,
   submitTx
 } from "./lib/primaryFlow.ts";
-import {
-  consumePendingClaim,
-  getPolicyStatePath,
-  getNextActiveWaitlistEntry,
-  loadPendingClaim,
-  loadWaitlistEntry,
-  storeWaitlistEntry,
-  resetPolicyState,
-  storePendingClaim,
-  updateClaimRecord
-} from "./lib/policyGate.ts";
+import { createOnLedgerPolicyState } from "./lib/onLedgerPolicyState.ts";
 
 type AuditScenario = {
   name: string;
@@ -48,6 +44,61 @@ function reportScenario(
   };
 }
 
+async function fetchFeature(client: any, name: string) {
+  const response = await client.request({
+    command: "feature"
+  });
+  const features = (response.result as {
+    features?: Record<string, { enabled?: boolean; supported?: boolean; name?: string }>;
+  }).features ?? {};
+  return Object.values(features).find((entry) => entry.name === name) ?? null;
+}
+
+async function fetchParentBatchMatches(client: any, account: string, batchHash: string) {
+  const response = await client.request({
+    command: "account_tx",
+    account,
+    ledger_index_min: -1,
+    ledger_index_max: -1,
+    limit: 20
+  });
+
+  const txs = (response.result as { transactions?: Array<Record<string, any>> }).transactions ?? [];
+  return txs.filter((entry) => entry.meta?.ParentBatchID === batchHash || entry.tx?.ParentBatchID === batchHash);
+}
+
+function findBatchInnerResult(
+  entries: Array<Record<string, any>>,
+  predicate: (entry: Record<string, any>) => boolean
+) {
+  return entries.find(predicate) ?? null;
+}
+
+async function accountHasMpt(client: any, account: string, issuanceId: string) {
+  const response = await client.request({
+    command: "account_objects",
+    account
+  });
+  const objects = (response.result as { account_objects?: Array<Record<string, unknown>> }).account_objects ?? [];
+  return objects.some(
+    (entry) =>
+      entry.LedgerEntryType === "MPToken" &&
+      entry.MPTokenIssuanceID === issuanceId &&
+      Number(entry.MPTAmount ?? "0") > 0
+  );
+}
+
+async function accountHasEscrow(client: any, account: string, sequence: number) {
+  const response = await client.request({
+    command: "account_objects",
+    account
+  });
+  const objects = (response.result as { account_objects?: Array<Record<string, any>> }).account_objects ?? [];
+  return objects.some(
+    (entry) => entry.LedgerEntryType === "Escrow" && entry.Owner === account && Number(entry.PreviousTxnLgrSeq ?? -1) >= 0 && Number(entry.Sequence ?? entry.OfferSequence ?? -1) === sequence
+  );
+}
+
 async function runAudit() {
   const context = await provisionPrimaryContext({
     buyerMinimumUsd: "200",
@@ -55,15 +106,36 @@ async function runAudit() {
   });
 
   try {
-    resetPolicyState();
-    const candidateFund = await context.client.fundWallet();
+    const candidateFund = await createFundedWallet(
+      context.client,
+      context.config,
+      undefined,
+      "Audit: Create Candidate Wallet"
+    );
     const candidateWallet = candidateFund.wallet;
-    const waitlistFund = await context.client.fundWallet();
+    const waitlistFund = await createFundedWallet(
+      context.client,
+      context.config,
+      undefined,
+      "Audit: Create Waitlist Wallet"
+    );
     const waitlistWallet = waitlistFund.wallet;
-    const escrowVaultFund = await context.client.fundWallet();
+    const escrowVaultFund = await createFundedWallet(
+      context.client,
+      context.config,
+      undefined,
+      "Audit: Create Escrow Vault Wallet"
+    );
     const escrowVaultWallet = escrowVaultFund.wallet;
+    const policyState = createOnLedgerPolicyState({
+      client: context.client,
+      config: context.config,
+      vendorWallet: context.vendorWallet,
+      escrowVaultWallet
+    });
+    await policyState.reset();
 
-    await clearDepositAuth(context.client, escrowVaultWallet, "Audit: Clear DepositAuth On Escrow Vault");
+    await clearDepositAuth(context.client, escrowVaultWallet, "Audit: Clear DepositAuth On Escrow Vault", context.config);
 
     await ensureUsdTrustline(
       context.client,
@@ -126,8 +198,38 @@ async function runAudit() {
           `${labelPrefix} #${releaseContext.ticketIndex + 1} -> ${releaseContext.recipientWallet}`
         );
     };
-    const submitWaitlistEscrow = (escrowTx: any, label: string) =>
-      submitTx(context.client, waitlistWallet, escrowTx, label);
+    const submitWaitlistEscrow = async (escrowTx: any, label: string) => {
+      const preparedEscrowTx = { ...escrowTx };
+
+      if (isLocalStandaloneClient(context.client, context.config)) {
+        const currentRippleTime = await getCurrentRippleTime(context.client);
+        const finishAfter = currentRippleTime + 300;
+        const currentCancelAfter =
+          typeof preparedEscrowTx.CancelAfter === "number"
+            ? preparedEscrowTx.CancelAfter
+            : finishAfter + 15 * 60;
+
+        preparedEscrowTx.FinishAfter = finishAfter;
+        preparedEscrowTx.CancelAfter = Math.max(currentCancelAfter, finishAfter + 1);
+      }
+
+      const result = await submitTx(context.client, waitlistWallet, preparedEscrowTx, label, {
+        config: context.config
+      });
+
+      if (
+        isLocalStandaloneClient(context.client, context.config) &&
+        typeof preparedEscrowTx.FinishAfter === "number"
+      ) {
+        await advanceLocalStandaloneToRippleTime(
+          context.client,
+          preparedEscrowTx.FinishAfter,
+          context.config
+        );
+      }
+
+      return result;
+    };
     const scenarios: AuditScenario[] = [];
 
     let purchaseDidRejected = false;
@@ -169,10 +271,10 @@ async function runAudit() {
         didAuth: undefined as any,
         escrowDestination: escrowVaultWallet.address,
         runtime: {
-          submitEscrow: (escrowTx) => submitWaitlistEscrow(escrowTx, "Audit: Unexpected Waitlist Escrow Without DID"),
-          persistWaitlistEntry: storeWaitlistEntry
-        }
-      });
+        submitEscrow: (escrowTx) => submitWaitlistEscrow(escrowTx, "Audit: Unexpected Waitlist Escrow Without DID"),
+        persistWaitlistEntry: policyState.persistWaitlistEntry
+      }
+    });
     } catch (error) {
       waitlistDidRejected = true;
       waitlistDidReason = error instanceof Error ? error.message : String(error);
@@ -198,15 +300,17 @@ async function runAudit() {
       escrowDestination: escrowVaultWallet.address,
       runtime: {
         submitEscrow: (escrowTx) => submitWaitlistEscrow(escrowTx, "Audit: Waitlist Escrow Created"),
-        persistWaitlistEntry: storeWaitlistEntry
+        persistWaitlistEntry: policyState.persistWaitlistEntry
       }
     });
+
+    const batchFeature = await fetchFeature(context.client, "Batch");
 
     scenarios.push(
       reportScenario(
         "waitlist escrow is created and persisted for a verified wallet",
         "success",
-        waitlistJoin.escrowStatus === "active" && Boolean(loadWaitlistEntry(waitlistJoin.waitlistId)?.escrowSequence)
+        waitlistJoin.escrowStatus === "active" && Boolean((await policyState.loadWaitlistEntry(waitlistJoin.waitlistId))?.escrowSequence)
           ? "success"
           : "failure",
         "Waitlist reservations should hold a real XRPL escrow-style deposit and persist an active allocation candidate.",
@@ -230,7 +334,7 @@ async function runAudit() {
         xrplClient: context.client,
         submitPayment: submitBuyerPayment(context.buyerWallet, "Audit: Solo Buyer Pays Vendor"),
         submitTicketRelease: submitVendorRelease("Audit: Vendor Releases Solo Ticket"),
-        persistPendingClaim: storePendingClaim
+        persistPendingClaim: policyState.persistPendingClaim
       }
     });
 
@@ -251,7 +355,7 @@ async function runAudit() {
     );
 
     const soloTicketId = `${(soloPurchase.paymentResult as SubmittedTx | undefined)?.hash}:${context.buyerWallet.address}:0`;
-    storePendingClaim({
+    await policyState.persistPendingClaim({
       claimId: soloTicketId,
       paymentTxHash: (soloPurchase.paymentResult as SubmittedTx | undefined)?.hash ?? "",
       buyerAddress: context.buyerWallet.address,
@@ -281,7 +385,7 @@ async function runAudit() {
         xrplClient: context.client,
         submitPayment: submitBuyerPayment(context.secondaryWallet, "Audit: Group Buyer Pays Vendor"),
         submitTicketRelease: submitVendorRelease("Audit: Vendor Releases Group Ticket"),
-        persistPendingClaim: storePendingClaim
+        persistPendingClaim: policyState.persistPendingClaim
       }
     });
 
@@ -316,7 +420,7 @@ async function runAudit() {
       throw new Error("Expected pending candidate to receive a pendingClaimId.");
     }
 
-    const persistedPendingClaim = loadPendingClaim(pendingCandidate.pendingClaimId);
+    const persistedPendingClaim = await policyState.loadPendingClaim(pendingCandidate.pendingClaimId);
     scenarios.push(
       reportScenario(
         "pending claim is persisted for later recipient fulfillment",
@@ -336,26 +440,115 @@ async function runAudit() {
       ticketId: soloTicketId,
       didAuth: buyerDidAuth,
       runtime: {
-        loadClaimRecord: loadPendingClaim,
-        loadNextWaitlistEntry: getNextActiveWaitlistEntry
+        loadClaimRecord: policyState.loadPendingClaim,
+        loadNextWaitlistEntry: policyState.getNextActiveWaitlistEntry,
+        submitReturnBatch:
+          batchFeature?.enabled
+            ? async (batchPlan, batchContext) => {
+          const signingWallets: Record<string, typeof context.vendorWallet> = {
+            [context.vendorWallet.address]: context.vendorWallet,
+            [context.buyerWallet.address]: context.buyerWallet,
+            [escrowVaultWallet.address]: escrowVaultWallet
+          };
+
+          const batchResult = await submitNativeBatch({
+            client: context.client,
+            outerAccountWallet: context.vendorWallet,
+            signingWallets,
+            innerTransactions: batchPlan.transactions.map((item) => item.tx),
+            label: "Audit: Return Ticket Native Batch",
+            config: context.config
+          });
+
+          const involvedAccounts = Array.from(
+            new Set(batchPlan.transactions.map((item) => String(item.tx.Account)))
+          );
+          const batchMatches = (
+            await Promise.all(
+              involvedAccounts.map((account) =>
+                fetchParentBatchMatches(context.client, account, batchResult.hash ?? "")
+              )
+            )
+          ).flat();
+
+          return {
+            batchHash: batchResult.hash,
+            results: {
+              ticket_return: findBatchInnerResult(
+                batchMatches,
+                (entry) =>
+                  entry.tx?.TransactionType === "Payment" &&
+                  entry.tx?.Account === context.buyerWallet.address &&
+                  entry.tx?.Destination === context.vendorWallet.address &&
+                  entry.tx?.Amount?.mpt_issuance_id === batchContext.claimRecord.issuanceId
+              ),
+              refund: findBatchInnerResult(
+                batchMatches,
+                (entry) =>
+                  entry.tx?.TransactionType === "Payment" &&
+                  entry.tx?.Account === context.vendorWallet.address &&
+                  entry.tx?.Destination === context.buyerWallet.address &&
+                  entry.tx?.Amount?.currency === batchContext.claimRecord.currency
+              ),
+              waitlist_escrow_finish: batchContext.waitlistEntry
+                ? findBatchInnerResult(
+                    batchMatches,
+                    (entry) =>
+                      entry.tx?.TransactionType === "EscrowFinish" &&
+                      entry.tx?.Account === batchContext.waitlistEntry?.escrowDestination &&
+                      entry.tx?.Owner === batchContext.waitlistEntry?.escrowOwner &&
+                      Number(entry.tx?.OfferSequence) === batchContext.waitlistEntry?.escrowSequence
+              )
+                : null
+            }
+          };
+        }
+            : undefined,
+        updateClaimRecord: policyState.updateClaimRecord,
+        updateWaitlistEntry: policyState.updateWaitlistEntry,
+        persistPendingClaim: policyState.persistPendingClaim
       }
     });
 
+    const returnedClaim = await policyState.loadPendingClaim(soloTicketId);
+    const allocatedWaitlistEntry = await policyState.loadWaitlistEntry(waitlistJoin.waitlistId);
+    const buyerStillHasReturnedTicket = await accountHasMpt(
+      context.client,
+      context.buyerWallet.address,
+      context.issuanceId
+    );
+    const waitlistEscrowStillExists =
+      typeof waitlistJoin.waitlistEntry.escrowSequence === "number"
+        ? await accountHasEscrow(context.client, waitlistWallet.address, waitlistJoin.waitlistEntry.escrowSequence)
+        : true;
+
     scenarios.push(
       reportScenario(
-        "return endpoint builds a native all-or-nothing batch plan",
+        "return executes a native all-or-nothing batch on-ledger",
         "success",
-        returnedSolo.returnStatus === "planned" &&
-          returnedSolo.batchPlan.batchMode === "ALL_OR_NOTHING" &&
-          returnedSolo.batchPlan.transactions.some((item) => item.role === "ticket_return") &&
-          returnedSolo.batchPlan.transactions.some((item) => item.role === "refund") &&
-          returnedSolo.batchPlan.transactions.some((item) => item.role === "waitlist_escrow_finish")
-          ? "success"
-          : "failure",
-        "On XRPL Devnet today, the SDK should still build the exact native Batch contract for returns even when the ledger cannot execute Batch yet.",
+        batchFeature?.enabled
+          ? returnedSolo.returnStatus === "returned" &&
+            returnedSolo.batchPlan.batchMode === "ALL_OR_NOTHING" &&
+            Boolean(returnedSolo.batchResult?.batchHash) &&
+            returnedClaim?.status === "returned" &&
+            allocatedWaitlistEntry?.status === "allocated" &&
+            !waitlistEscrowStillExists
+            ? "success"
+            : "failure"
+          : returnedSolo.returnStatus === "planned" &&
+              returnedSolo.batchPlan.batchMode === "ALL_OR_NOTHING"
+            ? "success"
+            : "failure",
+        "The return path should submit the real XRPL Batch, apply all inner transactions on-ledger, mark the claim returned, and consume the next waitlist escrow.",
         {
           batchMode: returnedSolo.batchPlan.batchMode,
-          roles: returnedSolo.batchPlan.transactions.map((item) => item.role)
+          batchHash: returnedSolo.batchResult?.batchHash ?? null,
+          roles: returnedSolo.batchPlan.transactions.map((item) => item.role),
+          batchFeature,
+          claimStatus: returnedClaim?.status ?? null,
+          waitlistStatus: allocatedWaitlistEntry?.status ?? null,
+          buyerStillHasReturnedTicket,
+          waitlistEscrowStillExists
         }
       )
     );
@@ -369,7 +562,7 @@ async function runAudit() {
         ticketId: pendingCandidate.pendingClaimId,
         runtime: {
           xrplClient: context.client,
-          loadPendingClaim,
+          loadPendingClaim: policyState.loadPendingClaim,
           submitAuthorization: (authorizeTx) =>
             submitTx(context.client, candidateWallet, authorizeTx, "Audit: Unexpected Claim Authorization With Failed DID"),
           submitTicketRelease: (releaseTx, pendingClaim) =>
@@ -379,7 +572,7 @@ async function runAudit() {
               releaseTx,
               `Audit: Unexpected Claim Release #${pendingClaim.ticketIndex + 1} -> ${pendingClaim.recipientWallet}`
             ),
-          consumePendingClaim
+          consumePendingClaim: policyState.consumePendingClaim
         }
       });
     } catch (error) {
@@ -407,7 +600,7 @@ async function runAudit() {
       didAuth: candidateDidAuth,
       runtime: {
         xrplClient: context.client,
-        loadPendingClaim,
+        loadPendingClaim: policyState.loadPendingClaim,
         submitAuthorization: (authorizeTx) =>
           submitTx(context.client, candidateWallet, authorizeTx, "Audit: Candidate Authorizes Pending Claim"),
         submitTicketRelease: (releaseTx, pendingClaim) =>
@@ -417,11 +610,11 @@ async function runAudit() {
             releaseTx,
             `Audit: Vendor Releases Claimed Ticket #${pendingClaim.ticketIndex + 1} -> ${pendingClaim.recipientWallet}`
           ),
-        consumePendingClaim
+        consumePendingClaim: policyState.consumePendingClaim
       }
     });
 
-    const claimedPending = loadPendingClaim(pendingCandidate.pendingClaimId);
+    const claimedPending = await policyState.loadPendingClaim(pendingCandidate.pendingClaimId);
     scenarios.push(
       reportScenario(
         "pending recipient can authorize and claim exactly once",
@@ -446,7 +639,7 @@ async function runAudit() {
         ticketId: pendingCandidate.pendingClaimId,
         runtime: {
           xrplClient: context.client,
-          loadPendingClaim,
+          loadPendingClaim: policyState.loadPendingClaim,
           submitAuthorization: (authorizeTx) =>
             submitTx(context.client, candidateWallet, authorizeTx, "Audit: Duplicate Candidate Authorization"),
           submitTicketRelease: (releaseTx, pendingClaim) =>
@@ -456,7 +649,7 @@ async function runAudit() {
               releaseTx,
               `Audit: Duplicate Vendor Release #${pendingClaim.ticketIndex + 1} -> ${pendingClaim.recipientWallet}`
             ),
-          consumePendingClaim
+          consumePendingClaim: policyState.consumePendingClaim
         }
       });
     } catch (error) {
@@ -495,8 +688,12 @@ async function runAudit() {
         venueId: context.vendorWallet.address,
         qrCodeText: qrResult.qrCodeText,
         runtime: {
-          loadPendingClaim,
-          updateClaimRecord,
+          loadPendingClaim: policyState.loadPendingClaim,
+          updateClaimRecord: policyState.updateClaimRecord,
+          submitRedemptionMarker: (redemptionTx) =>
+            submitTx(context.client, context.vendorWallet, redemptionTx, "Audit: Redemption Marker Submitted", {
+              config: context.config
+            }),
           now: () => new Date("2026-04-18T12:00:20.000Z")
         }
       });
@@ -525,13 +722,17 @@ async function runAudit() {
       qrCodeText: qrResult.qrCodeText,
       didAuth: candidateDidAuth,
       runtime: {
-        loadPendingClaim,
-        updateClaimRecord,
+        loadPendingClaim: policyState.loadPendingClaim,
+        updateClaimRecord: policyState.updateClaimRecord,
+        submitRedemptionMarker: (redemptionTx) =>
+          submitTx(context.client, context.vendorWallet, redemptionTx, "Audit: Redemption Marker Submitted", {
+            config: context.config
+          }),
         now: () => new Date("2026-04-18T12:00:30.000Z")
       }
     });
 
-    const redeemedRecord = loadPendingClaim(pendingCandidate.pendingClaimId);
+    const redeemedRecord = await policyState.loadPendingClaim(pendingCandidate.pendingClaimId);
     scenarios.push(
       reportScenario(
         "claimed ticket can be redeemed with a valid QR scan",
@@ -596,8 +797,12 @@ async function runAudit() {
         qrCodeText: qrResult.qrCodeText,
         didAuth: candidateDidAuth,
         runtime: {
-          loadPendingClaim,
-          updateClaimRecord,
+          loadPendingClaim: policyState.loadPendingClaim,
+          updateClaimRecord: policyState.updateClaimRecord,
+          submitRedemptionMarker: (redemptionTx) =>
+            submitTx(context.client, context.vendorWallet, redemptionTx, "Audit: Redemption Marker Submitted", {
+              config: context.config
+            }),
           now: () => new Date("2026-04-18T12:00:40.000Z")
         }
       });
@@ -726,7 +931,7 @@ async function runAudit() {
       candidateAddress: candidateWallet.address,
       issuerAddress: context.issuerWallet.address,
       issuanceId: context.issuanceId,
-      policyStatePath: getPolicyStatePath(),
+      policyStatePath: "on-ledger markers via vendor/escrow-vault account_tx",
       scenarios,
       soloPurchase: {
         deliveredRecipients: soloPurchase.deliveredRecipients,
