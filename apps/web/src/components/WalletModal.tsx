@@ -21,6 +21,7 @@ export function WalletModal({
   const [error, setError] = useState("");
   const [balance, setBalance] = useState<string | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Drag state
   const [dragY, setDragY] = useState(0);
@@ -176,9 +177,23 @@ export function WalletModal({
             {/* Address card */}
             <div style={{ background: "#2C2C2E", borderRadius: 18, padding: "16px 18px", marginBottom: 12 }}>
               <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, fontWeight: 600, margin: "0 0 4px" }}>Address</p>
-              <p style={{ color: "#fff", fontSize: 13, fontFamily: "monospace", wordBreak: "break-all", margin: 0 }}>
-                {walletAddress}
-              </p>
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <p style={{ color: "#fff", fontSize: 13, fontFamily: "monospace", wordBreak: "break-all", margin: 0, lineHeight: 1 }}>
+                  {walletAddress}
+                </p>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(walletAddress ?? "");
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, lineHeight: 1, flexShrink: 0,
+                    color: copied ? "#F06E1D" : "rgba(255,255,255,0.3)",
+                    fontSize: 11, fontWeight: 600, transition: "color 0.2s" }}
+                >
+                  {copied ? "copied" : "copy"}
+                </button>
+              </div>
             </div>
 
             {/* Balance card */}
