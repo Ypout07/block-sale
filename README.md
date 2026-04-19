@@ -1,32 +1,54 @@
-# XRPL Ticketing Protocol
+# Block Party
 
-This repository is now scaffolded as a small monorepo for the closed-loop XRPL ticketing protocol described in [pitch_rationale.md](/C:/Users/natha/Downloads/block-sale/pitch_rationale.md) and [product_ideas.md](/C:/Users/natha/Downloads/block-sale/product_ideas.md).
+Block Party is an SDK endpoint that runs on the XRP ledger to permanently end secondary ticket markets. Scalpers are blocked, fans pay face value, and artists capture the true value of their work.
 
-## Architecture
+## The Problem
 
-- `apps/web`: Next.js frontend for purchase, claim, return, waitlist, and venue dashboard flows.
-- `packages/ticket-sdk`: TypeScript SDK that wraps XRPL connectivity, DID/oracle checks, and protocol methods.
-- `contracts`: XRPL Wasm Hook source, test payloads, and deployment script placeholders.
+Fans wait years to see their favorite artists perform live, only to be beaten by resellers and bots within seconds. Those tickets are then sold third-party at an average of 65% above sale price. 
 
-## Workspace Layout
+Historically, hundreds of blockchain solutions have tried their hand at "fixing" the systematic problems behind secondary markets. The common denominator between these failed attempts is the fact that vendors cannot control the ownership and transfer of money surrounding the tickets once they sell it. 
 
-```text
-xrpl-ticketing-protocol/
-├── apps/
-│   └── web/
-├── packages/
-│   └── ticket-sdk/
-├── contracts/
-├── backend/
-├── pitch_rationale.md
-└── product_ideas.md
-```
+## The Future
 
-The existing `backend/requirements.txt` has been left untouched as legacy exploratory work. The new scaffold is centered on the monorepo layout above.
+Utilizing bleeding-edge functionalities from XRPL, Block Party completely redefines ticketing by removing that ability to resell entirely. It's a multi-step process:
 
-## Next Build Steps
+1. Fans' accounts are first verified using Decentralized IDs, which simultaneously stop scalpers from making multiple accounts while signing the real accounts with a verification flag. 
+2. When fans buy tickets through a vendor that uses Block Party, their money goes across the blockchain as RLUSD, a regulated stablecoin by Ripple.
+3. Once the vendor receives the RLUSD payment, they mint a Multi-Purpose Token (MPT) -- the digital right to the ticket -- and send it back to the fan.
+4. The MPT now cannot be transferred to anyone else's account. Hooks enforce this logic, only allowing returns back to the vendor at a 2% fee (which primarily goes back to the artist).
+5. If a fan was not able to get an MPT in time, they can enter the waitlist. This works via an Escrow, where prepayments are held on the blockchain until someone returns their ticket. Once that happens, a Batch atomically refunds the original purchaser, takes the fee, reassigns the MPT to the fan on the waitlist, and takes the RLUSD that was held in the Escrow. 
 
-1. Install dependencies from the root with your package manager of choice.
-2. Implement the SDK methods against real `xrpl` client calls.
-3. Replace the contract placeholders with actual Wasm Hook logic and deployment tooling.
-4. Wire the frontend flows to the SDK once wallet and DID assumptions are finalized.
+## So I Can't Buy For My Friends?
+
+You can! The way that this process is executed cleverly allows you to buy for your friends while not allowing loopholes to backdoor ticket payments. It's simple:
+
+- Your friend group predeclares that you will buy tickets (MPTs) for each other.
+- If one friend makes it in, they can then buy as many MPTs as are in their friend group (up to 10).
+- The MPTs are automatically minted and sent to each friends' wallet, awaiting acceptance from them when they get off work.
+
+After this, the MPTs belong to each friend and cannot be transferred any longer (besides returns).
+
+## Why Can't I Just Give My Friend My Account Login?
+
+Good thing we accounted for delinquents like you. The authentication on your account stops this. 
+
+The Decentralized IDs are checked at login every time. That means, identifying verification must happen at the time of redemption. Good luck getting your identification to work with your friend's account!
+
+## How To Start
+
+The primary benefit of this repo is the SDK, which routes logic for ticket sellers through the blockchain lifecycle and auditing. However, due to the novelty of the features, it will currently run on a local instance of XRPL. Here are some rough steps and references on how you can get this working yourself (and play around with these new features, too!):
+
+1. The XRPL code comes from [this](#https://github.com/XRPLF/rippled) repo. [This](#https://xrpl.org/docs/concepts/networks-and-servers/rippled-server-modes) link describes the different modes for XRPLF. This project uses the `stand-alone` so it can use `Amendments`.
+2. Before you build the code, you will need to ensure that you include the Amendments in the source code. Once they are included, reference [this](#https://github.com/XRPLF/rippled/blob/develop/BUILD.md) page to see how to build the program locally. You will need a heavy C++ environment. Just because the Amendments are included doesn't mean they are turned on -- double check!
+3. Now, you can spin up the server. Point the SDK at the server and run it. The SDK comes with a handful of testing functions to check that everything is working properly:
+
+  ``` bash
+  npm run audit:credential-auth
+  npm run audit:permissioned-domain
+  npm run audit:native-batch
+  npm run audit:primary-policy
+  ```
+4. Voila! You can, as a final step, connect your local server address to [this](#https://livenet.xrpl.org/) website, which will visualize the ledger transactions across your local instance. Now build away!
+
+## Authors
+This project was authored by Nathan McCormick, Adam Alkawaz, and Ogochukwu Ibe-Ikechi at the University of Kansas' HackKU hackathon on April 17 - 19, 2026. We pursued the Ripple sponsor track, which involved building cutting-edge technology on the XRP blockchain to solve real world problems. Block Party was brought from ideation to production in less that 36 hours. 
