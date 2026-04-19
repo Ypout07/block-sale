@@ -421,7 +421,7 @@ export default function ClaimPage() {
 
   const pending = claims.filter((c) => c.status === "pending_authorization");
   const past = claims.filter((c) => c.status === "claimed");
-  const activeWaitlist = waitlist.filter((w) => w.status === "pending");
+  const activeWaitlist = waitlist.filter((w) => w.status === "active" || w.status === "planned");
 
   function openClaim(claimId: string) {
     setSelectedId(claimId);

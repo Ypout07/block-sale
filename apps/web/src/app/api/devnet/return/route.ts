@@ -74,37 +74,36 @@ export async function POST(req: NextRequest) {
             } as any;
         },
         loadNextWaitlistEntry: async (venueIdStr) => {
-            const waitlistKey = eventId || VENUE_ADDRESS;
-            const nextEntry = getNextWaitlistEntry(waitlistKey);
-            if (!nextEntry) return null;
-            return {
-                waitlistId: nextEntry.waitlistId,
-                wallet: nextEntry.wallet,
-                venueId: waitlistKey,
-            } as any;
+            const nextEntry = getNextWaitlistEntry(venueIdStr, eventId ?? undefined);
+            return nextEntry ?? null;
         },
         submitReturnBatch: async (batchPlan) => {
             const userWalletObj = Wallet.fromSeed(userSeed);
             const venueWalletObj = Wallet.fromSeed(venueSeed);
-            
+
             const returnTx = batchPlan.transactions.find(t => t.role === "ticket_return")?.tx;
             const refundTx = batchPlan.transactions.find(t => t.role === "refund")?.tx;
-            
+            const escrowFinishTx = batchPlan.transactions.find(t => t.role === "waitlist_escrow_finish")?.tx;
+
             let ticketReturnResult: any = null;
             let refundResult: any = null;
-            
+            let waitlistEscrowFinishResult: any = null;
+
             if (returnTx) {
                 ticketReturnResult = await submitTx(client, userWalletObj, returnTx);
             }
             if (refundTx) {
                 refundResult = await submitTx(client, venueWalletObj, refundTx);
             }
-            
+            if (escrowFinishTx) {
+                waitlistEscrowFinishResult = await submitTx(client, venueWalletObj, escrowFinishTx);
+            }
+
             return {
                 results: {
                     ticket_return: ticketReturnResult,
                     refund: refundResult,
-                    waitlist_escrow_finish: null
+                    waitlist_escrow_finish: waitlistEscrowFinishResult
                 }
             };
         },

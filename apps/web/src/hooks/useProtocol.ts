@@ -189,12 +189,16 @@ export function useProtocol() {
 
   async function joinWaitlist(venueId: string): Promise<any> {
     if (!walletAddress) throw new Error("Wallet not connected.");
+    const freshAuth = hasCryptoSubtle()
+      ? await authenticateWallet({ wallet: walletAddress })
+      : makeFallbackAuth(walletAddress);
     const res = await fetch("/api/devnet/waitlist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         wallet: walletAddress,
         venueId,
+        didAuth: freshAuth,
       }),
     });
     if (!res.ok) {
