@@ -1,7 +1,9 @@
 import { Client } from "xrpl";
 
+const XRPL_WS_URL = process.env.XRPL_WS_URL || "ws://127.0.0.1:6006";
+
 async function diag() {
-  const client = new Client("wss://s.devnet.rippletest.net:51233");
+  const client = new Client(XRPL_WS_URL);
   await client.connect();
 
   const ALICE = "rH1wbyfhqKKvybioodsh9ctZiRf8rS1hKS";

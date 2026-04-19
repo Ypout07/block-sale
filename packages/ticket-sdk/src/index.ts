@@ -68,6 +68,23 @@ import {
   type CredentialAuthProviderConfig,
   type CredentialProvisionResult
 } from "./oracle/credentialAuthProvider.js";
+import {
+  buildOnLedgerStateMemos,
+  createOnLedgerStateRuntime,
+  type LedgerClient,
+  type OnLedgerStateRuntime,
+  type PolicyEvent
+} from "./runtime/onLedgerState.js";
+import {
+  createOnLedgerProtocolRuntime,
+  type OnLedgerProtocolSubmitters,
+  type OnLedgerProtocolRuntime
+} from "./runtime/onLedgerProtocolRuntime.js";
+import {
+  createOnLedgerSdkRuntime,
+  type CreateOnLedgerSdkRuntimeInput,
+  type LedgerBackedSdkRuntime
+} from "./runtime/onLedgerSdkRuntime.js";
 export {
   authenticateWallet,
   mockDidAuthProvider,
@@ -85,6 +102,23 @@ export {
   type CredentialAuthProviderConfig,
   type CredentialProvisionResult
 } from "./oracle/credentialAuthProvider.js";
+export {
+  buildOnLedgerStateMemos,
+  createOnLedgerStateRuntime,
+  type LedgerClient,
+  type OnLedgerStateRuntime,
+  type PolicyEvent
+} from "./runtime/onLedgerState.js";
+export {
+  createOnLedgerProtocolRuntime,
+  type OnLedgerProtocolSubmitters,
+  type OnLedgerProtocolRuntime
+} from "./runtime/onLedgerProtocolRuntime.js";
+export {
+  createOnLedgerSdkRuntime,
+  type CreateOnLedgerSdkRuntimeInput,
+  type LedgerBackedSdkRuntime
+} from "./runtime/onLedgerSdkRuntime.js";
 export {
   assertPrimaryPurchasePayment,
   getDeliveredIssuedAmount,
@@ -156,6 +190,17 @@ export class Protocol {
 
   createClient(url?: string) {
     return createXrplClient(url);
+  }
+
+  createOnLedgerRuntime(
+    state: OnLedgerStateRuntime,
+    submitters?: OnLedgerProtocolSubmitters
+  ): OnLedgerProtocolRuntime {
+    return createOnLedgerProtocolRuntime(state, submitters);
+  }
+
+  createLedgerBackedRuntime(input: CreateOnLedgerSdkRuntimeInput): LedgerBackedSdkRuntime {
+    return createOnLedgerSdkRuntime(input);
   }
 
   async buyGiftTickets(input: BuyGroupTicketInput): Promise<BuyGroupTicketResult> {

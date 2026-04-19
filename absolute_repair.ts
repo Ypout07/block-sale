@@ -1,7 +1,9 @@
 import { Client, Wallet } from "xrpl";
 
+const XRPL_WS_URL = process.env.XRPL_WS_URL || "ws://127.0.0.1:6006";
+
 async function repair() {
-  const client = new Client("wss://s.devnet.rippletest.net:51233");
+  const client = new Client(XRPL_WS_URL);
   await client.connect();
 
   const ISSUER_ADDR = "rLVPGrB5vPYryqtghu3zQ9F6mSdJmNEJB1";

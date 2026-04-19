@@ -1,6 +1,6 @@
 import { Client, Wallet } from "xrpl";
 
-const DEVNET_URL = "wss://s.devnet.rippletest.net:51233";
+const XRPL_WS_URL = process.env.XRPL_WS_URL || "ws://127.0.0.1:6006";
 const ISSUER_SEED = "sEdTcVsmgfearttgmGVyXipHui29i2K";
 const ALICE_SEED = "sEdViyntgnVLEaerZG2vthtbk5MFKQM";
 const BOB_SEED = "sEd77gp3s7HHFNF34Xqv6Km9BMfpwp2";
@@ -8,7 +8,7 @@ const VENUE_SEED = "sEd77UAry5NZshnbLwf9pwU3pscTDf8";
 const ISSUER_ADDR = "rLVPGrB5vPYryqtghu3zQ9F6mSdJmNEJB1";
 
 async function nuke() {
-  const client = new Client(DEVNET_URL);
+  const client = new Client(XRPL_WS_URL);
   await client.connect();
 
   const issuer = Wallet.fromSeed(ISSUER_SEED);

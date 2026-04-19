@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import {
+  createFundedWallet,
   ensureMockUsdBalance,
   ensureMptAuthorization,
   ensureUsdTrustline,
@@ -64,9 +65,19 @@ async function run() {
   try {
     const scenarios: Scenario[] = [];
     const batchFeature = await fetchFeature(context.client, "Batch");
-    const returnerFund = await context.client.fundWallet();
+    const returnerFund = await createFundedWallet(
+      context.client,
+      context.config,
+      undefined,
+      "Batch Audit: Create Returner Wallet"
+    );
     const returnerWallet = returnerFund.wallet;
-    const invalidReturnerFund = await context.client.fundWallet();
+    const invalidReturnerFund = await createFundedWallet(
+      context.client,
+      context.config,
+      undefined,
+      "Batch Audit: Create Invalid Returner Wallet"
+    );
     const invalidReturnerWallet = invalidReturnerFund.wallet;
 
     await ensureUsdTrustline(context.client, returnerWallet, context.issuerWallet.address, "Batch Audit: Returner TrustSet");
@@ -130,7 +141,8 @@ async function run() {
             }
           }
         ],
-        label: "Batch Audit: Native Return/Refund Batch"
+        label: "Batch Audit: Native Return/Refund Batch",
+        config: context.config
       });
 
       validVendorMatches = await fetchParentBatchMatches(context.client, context.vendorWallet.address, validBatch.hash ?? "");
@@ -187,7 +199,8 @@ async function run() {
             }
           }
         ],
-        label: "Batch Audit: Invalid Native Batch"
+        label: "Batch Audit: Invalid Native Batch",
+        config: context.config
       });
       invalidBatchHash = invalidBatch.hash ?? null;
       const matches = invalidBatch.hash

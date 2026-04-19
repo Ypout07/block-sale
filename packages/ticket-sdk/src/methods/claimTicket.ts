@@ -22,6 +22,7 @@ export type PendingClaimRecord = {
   releasedTxHash?: string;
   redeemedAt?: string;
   redemptionHash?: string;
+  redemptionTxHash?: string;
   returnedAt?: string;
   returnBatchHash?: string;
   refundTxHash?: string;

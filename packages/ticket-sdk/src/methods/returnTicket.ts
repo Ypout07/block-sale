@@ -138,7 +138,7 @@ function buildBatchPlan(
       role: "waitlist_escrow_finish",
       tx: {
         TransactionType: "EscrowFinish",
-        Account: claimRecord.vendorAddress,
+        Account: waitlistEntry.escrowDestination || claimRecord.vendorAddress,
         Owner: waitlistEntry.escrowOwner,
         OfferSequence: waitlistEntry.escrowSequence
       }
