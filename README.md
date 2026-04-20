@@ -38,8 +38,8 @@ The Decentralized IDs are checked at login every time. That means, identity veri
 
 The primary benefit of this repo is the SDK, which routes logic for ticket sellers through the blockchain lifecycle and auditing. However, due to the novelty of the features, it will currently run on a local instance of XRPL. Here are some rough steps and references on how you can get this working yourself (and play around with these new features, too!):
 
-1. The XRPL code comes from [this](#https://github.com/XRPLF/rippled) repo. [This](#https://xrpl.org/docs/concepts/networks-and-servers/rippled-server-modes) link describes the different modes for XRPLF. This project uses the `standalone mode` so it can use `Amendments`.
-2. Before you build the code, you will need to ensure that you include the Amendments in the source code. Once they are included, reference [this](#https://github.com/XRPLF/rippled/blob/develop/BUILD.md) page to see how to build the program locally. You will need a complete C++ build environment. Just because the Amendments are included doesn't mean they are turned on -- double check!
+1. The XRPL code comes from [this](https://github.com/XRPLF/rippled) repo. [This](https://xrpl.org/docs/concepts/networks-and-servers/rippled-server-modes) link describes the different modes for XRPLF. This project uses the `standalone mode` so it can use `Amendments`.
+2. Before you build the code, you will need to ensure that you include the Amendments in the source code. Once they are included, reference [this](https://github.com/XRPLF/rippled/blob/develop/BUILD.md) page to see how to build the program locally. You will need a complete C++ build environment. Just because the Amendments are included doesn't mean they are turned on -- double check!
 3. Now, you can spin up the server. Point the SDK at the server and run it. The SDK comes with a handful of testing functions to check that everything is working properly:
 
   ``` bash
@@ -48,7 +48,7 @@ The primary benefit of this repo is the SDK, which routes logic for ticket selle
   npm run audit:native-batch
   npm run audit:primary-policy
   ```
-4. Voila! You can, as a final step, connect your local server address to [this](#https://livenet.xrpl.org/) website, which will visualize the ledger transactions across your local instance. Now build away!
+4. Voila! You can, as a final step, connect your local server address to [this](https://livenet.xrpl.org/) website, which will visualize the ledger transactions across your local instance. Now build away!
 
 ## Authors
 This project was authored by Nathan McCormick, Adam Alkawaz, and Ogochukwu Ibe-Ikechi at the University of Kansas' HackKU hackathon on April 17 - 19, 2026. We pursued the Ripple sponsor track, which involved building cutting-edge technology on the XRP blockchain to solve real world problems. Block Party was brought from ideation to production in less than 36 hours. 
